@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import AuthContext from "./context/AuthContext"
 import AuthPage from "./pages/AuthPage"
-import Dashboard from "./pages/Dashboard"
+import Home from "./pages/Home"
 import styles from "./App.module.css"
 
 function App() {
@@ -34,7 +34,7 @@ function App() {
 
   return (
     <AuthContext.Provider value={{ user, handleLogin, handleLogout }}>
-      {user ? <Dashboard /> : <AuthPage />}
+      {user ? <Home /> : <AuthPage />}
     </AuthContext.Provider>
   )
 }
