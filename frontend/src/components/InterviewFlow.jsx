@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import {
   Video,
   VideoOff,
@@ -10,30 +11,15 @@ import {
 } from "lucide-react";
 import styles from "./InterviewFlow.module.css";
 
-/* ---------------- MOCK AI SERVICE ---------------- */
-const mockAiService = {
-  generateQuestions: async (role) => {
-    await new Promise((r) => setTimeout(r, 600));
-    return [
-      { id: 1, text: `Tell me about yourself as a ${role}.` },
-      { id: 2, text: "Explain a challenging problem you solved recently." },
-      { id: 3, text: "Where do you see yourself in 3 years?" },
-    ];
-  },
-  generateFeedback: async () => {
-    await new Promise((r) => setTimeout(r, 1200));
-    return {
-      score: 88,
-      summary: "Clear communication and confident responses.",
-      details: "Your answers were structured and relevant.",
-    };
-  },
-};
+const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3000";
+const TOTAL_QUESTIONS = 6;
 
-export default function InterviewFlow({ role = "Frontend Developer", onBack }) {
-  const [questions, setQuestions] = useState([]);
+export default function InterviewFlow({ role = "Frontend Developer", mode = "Technical", difficulty = "Medium", onBack }) {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [currentQuestion, setCurrentQuestion] = useState("");
+  const [askedQuestions, setAskedQuestions] = useState([]);
+  const [answers, setAnswers] = useState([]);
 
   const [answer, setAnswer] = useState("");
   const [listening, setListening] = useState(false);
@@ -56,13 +42,35 @@ export default function InterviewFlow({ role = "Frontend Developer", onBack }) {
     return () => (document.body.style.overflow = "");
   }, []);
 
-  /* ---------------- Load Questions ---------------- */
+  /* ---------------- Load First Question ---------------- */
   useEffect(() => {
-    mockAiService.generateQuestions(role).then((q) => {
-      setQuestions(q);
-      setLoading(false);
-    });
-  }, [role]);
+    const fetchFirst = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.post(
+          `${API_BASE}/api/questions/next-question`,
+          {
+            role,
+            mode,
+            difficulty,
+            questionNumber: 1,
+            lastQuestion: "",
+            lastAnswer: "",
+          },
+          { withCredentials: true }
+        );
+        const data = res.data;
+        setCurrentQuestion(data.question || "");
+        setAskedQuestions([data.question || ""]);
+      } catch (e) {
+        setCurrentQuestion("Failed to load question. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFirst();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, mode, difficulty]);
 
   /* ---------------- Speech Recognition (lazy init) ---------------- */
   const initSpeech = () => {
@@ -150,16 +158,62 @@ export default function InterviewFlow({ role = "Frontend Developer", onBack }) {
 
   /* ---------------- Next / Finish ---------------- */
   const handleNext = async () => {
-    if (index < questions.length - 1) {
-      setIndex((i) => i + 1);
-    } else {
+    // Save current answer
+    setAnswers((prev) => {
+      const next = [...prev];
+      next[index] = answer;
+      return next;
+    });
+
+    // If last question, finish
+    if (index >= TOTAL_QUESTIONS - 1) {
       setInterviewComplete(true);
       setGeneratingFeedback(true);
       recognitionRef.current?.stop();
       stopCamera();
-      const fb = await mockAiService.generateFeedback();
-      setFeedback(fb);
-      setGeneratingFeedback(false);
+      // Simple mock feedback to keep existing UX
+      setTimeout(() => {
+        setFeedback({
+          score: 80,
+          summary: "Thanks for completing the interview.",
+          details: "We will improve feedback generation soon.",
+        });
+        setGeneratingFeedback(false);
+      }, 1200);
+      return;
+    }
+
+    // Otherwise fetch next question from backend with context
+    try {
+      const lastQuestion = askedQuestions[index] || "";
+      const lastAnswer = answers[index] || answer || "";
+      const nextNumber = index + 2; // next questionNumber (1-based)
+      setLoading(true);
+      const res = await axios.post(
+        `${API_BASE}/api/questions/next-question`,
+        {
+          role,
+          mode,
+          difficulty,
+          questionNumber: nextNumber,
+          lastQuestion,
+          lastAnswer,
+        },
+        { withCredentials: true }
+      );
+      const data = res.data;
+      const qText = data.question || "";
+      setAskedQuestions((prev) => {
+        const next = [...prev];
+        next[index + 1] = qText;
+        return next;
+      });
+      setCurrentQuestion(qText);
+      setIndex((i) => i + 1);
+    } catch (e) {
+      setCurrentQuestion("Failed to load next question. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -198,8 +252,8 @@ export default function InterviewFlow({ role = "Frontend Developer", onBack }) {
     );
   }
 
-  const progress = ((index + 1) / questions.length) * 100;
-  const isLast = index === questions.length - 1;
+  const progress = ((index + 1) / TOTAL_QUESTIONS) * 100;
+  const isLast = index === TOTAL_QUESTIONS - 1;
 
   /* ---------------- UI ---------------- */
   return (
@@ -210,7 +264,7 @@ export default function InterviewFlow({ role = "Frontend Developer", onBack }) {
             <MessageSquare /> {role} Interview
           </h1>
           <span className={styles.counter}>
-            Question {index + 1} / {questions.length}
+            Question {index + 1} / {TOTAL_QUESTIONS}
           </span>
         </header>
 
@@ -221,7 +275,7 @@ export default function InterviewFlow({ role = "Frontend Developer", onBack }) {
         <div className={styles.layout}>
           {/* Question */}
           <div className={styles.questionCard}>
-            <h2 className={styles.questionText}>{questions[index].text}</h2>
+            <h2 className={styles.questionText}>{currentQuestion}</h2>
 
             <textarea
               ref={textareaRef}
