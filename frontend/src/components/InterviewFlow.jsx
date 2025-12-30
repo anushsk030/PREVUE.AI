@@ -37,8 +37,15 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const recognitionRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Google STT refs
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const minTimePassedRef = useRef(false);
 
   /* ---------------- Lock page scroll ---------------- */
   useEffect(() => {
@@ -76,34 +83,102 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, mode, difficulty]);
 
-  /* ---------------- Speech Recognition (lazy init) ---------------- */
-  const initSpeech = () => {
-    if (recognitionRef.current) return;
+  /* ---------------- Google STT Recording ---------------- */
+  const startRecording = async () => {
+    try {
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(audioStream);
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+      minTimePassedRef.current = false;
 
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
+      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+      recorder.onstop = sendForSTT;
 
-    const r = new SR();
-    r.continuous = true;
-    r.interimResults = true;
-    r.lang = "en-US";
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(audioStream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
 
-    r.onresult = (event) => {
-      let finalText = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalText += event.results[i][0].transcript + " ";
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      recorder.start();
+      setListening(true);
+
+      // Minimum 3 seconds before silence detection
+      setTimeout(() => {
+        minTimePassedRef.current = true;
+      }, 3000);
+
+      const dataArray = new Uint8Array(analyser.fftSize);
+
+      const checkSilence = () => {
+        analyser.getByteTimeDomainData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += Math.abs(dataArray[i] - 128);
         }
-      }
-      if (finalText) {
-        setAnswer((prev) =>
-          (prev + " " + finalText).replace(/\s+/g, " ").trim()
-        );
-      }
-    };
 
-    r.onerror = () => setListening(false);
-    recognitionRef.current = r;
+        const volume = sum / dataArray.length;
+
+        if (minTimePassedRef.current && volume < 5) {
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(stopRecording, 1000);
+          }
+        } else {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+
+        if (recorder.state === "recording") {
+          requestAnimationFrame(checkSilence);
+        }
+      };
+
+      checkSilence();
+
+      // Hard stop at 60 seconds
+      setTimeout(() => {
+        if (recorder.state === "recording") stopRecording();
+      }, 60000);
+    } catch (err) {
+      console.error("Recording error:", err);
+      setListening(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
+      recorderRef.current.stream.getTracks().forEach((t) => t.stop());
+      audioContextRef.current?.close();
+      setListening(false);
+    }
+  };
+
+  const sendForSTT = async () => {
+    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    
+    if (blob.size === 0) return;
+    
+    const form = new FormData();
+    form.append("audio", blob);
+
+    try {
+      const res = await axios.post(`${API_BASE}/api/stt/speech-to-text`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        withCredentials: true,
+      });
+
+      if (res.data?.text) {
+        setAnswer((prev) => (prev ? prev + " " + res.data.text : res.data.text).trim());
+      }
+    } catch (err) {
+      console.error("STT error:", err.response?.data || err.message);
+    }
   };
 
   /* ---------------- Auto-grow textarea ---------------- */
@@ -175,8 +250,9 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
 
   /* ---------------- Reset per question ---------------- */
   useEffect(() => {
-    recognitionRef.current?.stop();
-    setListening(false);
+    stopRecording();
+    clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = null;
     setAnswer("");
   }, [index]);
 
@@ -212,25 +288,15 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     }
   }, [loading, cameraOn]);
 
-  /* ---------------- Mic toggle (separate from camera) ---------------- */
-  const toggleMic = () => {
-    initSpeech();
-    if (!recognitionRef.current) return;
-
+  /* ---------------- Mic toggle (AUTO START CAMERA) ---------------- */
+  const toggleMedia = async () => {
     if (!mediaOn) {
-      try {
-        window.speechSynthesis?.cancel();
-        recognitionRef.current.start();
-        setListening(true);
-        setMediaOn(true);
-      } catch (e) {
-        console.warn("Failed to start mic", e);
-      }
+      await startCamera();
+      await startRecording();
+      setMediaOn(true);
     } else {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-      setListening(false);
+      stopRecording();
+      stopCamera();
       setMediaOn(false);
     }
   };
@@ -257,7 +323,7 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     if (index >= TOTAL_QUESTIONS - 1) {
       setInterviewComplete(true);
       setGeneratingFeedback(true);
-      recognitionRef.current?.stop();
+      stopRecording();
       stopCamera();
       // Simple mock feedback to keep existing UX
       setTimeout(() => {

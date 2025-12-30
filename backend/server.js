@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 
 import authRoutes from "./Routes/authRoutes.js";
 import questionRoutes from "./Routes/questionRoutes.js";
+import sttRoutes from "./Routes/stt.routes.js";
 
 
 const app = express()
@@ -21,6 +22,7 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use("/api", authRoutes);
 app.use("/api/questions", questionRoutes);
+app.use("/api/stt", sttRoutes)
 
 connectDB().then(() =>{
     app.listen(PORT, () => {
