@@ -95,7 +95,9 @@
 /* Actions */
 .actions {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end; /* align everything to the right */
+  gap: 12px;
   margin-top: 12px;
 }
 
@@ -106,6 +108,12 @@
   border-radius: 12px;
   cursor: pointer;
   color: var(--muted);
+}
+
+.iconGroup {
+  display: flex;
+  gap: 6px; /* little space between icons */
+  align-items: center;
 }
 
 .micActive {

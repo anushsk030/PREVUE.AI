@@ -8,6 +8,8 @@ import {
   Loader2,
   Camera,
   MessageSquare,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import styles from "./InterviewFlow.module.css";
 
@@ -148,7 +150,9 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     if (!synth) return;
     try {
       synth.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
+      // Remove backticks before speaking
+      const cleanText = String(text).replace(/`/g, "");
+      const utter = new SpeechSynthesisUtterance(cleanText);
       if (voice) utter.voice = voice;
       utter.lang = (voice && voice.lang) || "en-US";
       utter.rate = 0.9; // slower and more conversational
@@ -208,21 +212,35 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     }
   }, [loading, cameraOn]);
 
-  /* ---------------- Mic toggle (AUTO START CAMERA) ---------------- */
-  const toggleMedia = async () => {
+  /* ---------------- Mic toggle (separate from camera) ---------------- */
+  const toggleMic = () => {
     initSpeech();
     if (!recognitionRef.current) return;
 
     if (!mediaOn) {
-      await startCamera();
-      recognitionRef.current.start();
-      setListening(true);
-      setMediaOn(true);
+      try {
+        window.speechSynthesis?.cancel();
+        recognitionRef.current.start();
+        setListening(true);
+        setMediaOn(true);
+      } catch (e) {
+        console.warn("Failed to start mic", e);
+      }
     } else {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       setListening(false);
-      stopCamera();
       setMediaOn(false);
+    }
+  };
+
+  /* ---------------- Camera toggle (separate from mic) ---------------- */
+  const toggleCamera = async () => {
+    if (cameraOn) {
+      stopCamera();
+    } else {
+      await startCamera();
     }
   };
 
@@ -356,12 +374,23 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
             />
 
             <div className={styles.actions}>
-              <button
-                onClick={toggleMedia}
-                className={`${styles.iconBtn} ${mediaOn ? styles.micActive : ""}`}
-              >
-                {mediaOn ? <Video /> : <VideoOff />}
-              </button>
+              <div className={styles.iconGroup}>
+                <button
+                  onClick={toggleMic}
+                  className={`${styles.iconBtn} ${mediaOn ? styles.micActive : ""}`}
+                  title="Toggle Microphone"
+                >
+                  {mediaOn ? <Mic /> : <MicOff />}
+                </button>
+
+                <button
+                  onClick={toggleCamera}
+                  className={`${styles.iconBtn} ${cameraOn ? styles.cameraActive : ""}`}
+                  title="Toggle Camera"
+                >
+                  {cameraOn ? <Video /> : <VideoOff />}
+                </button>
+              </div>
 
               <button onClick={handleNext} className={styles.nextBtn}>
                 {isLast ? "Finish Interview" : "Next"}
