@@ -2,18 +2,20 @@
   --primary: #3b82f6;
   --muted: #9ca3af;
   --danger: #ef4444;
+  --bg-dark: #020617;
+  --bg-soft: #0b1220;
 }
 
-/* Page */
+/* ================= PAGE ================= */
 .container {
   height: calc(100vh - 142px);
   padding: 24px;
   background: linear-gradient(135deg, #f5f6ff, #e8ecff);
-  border-radius: 25px;
+  border-radius: 24px;
   overflow: hidden;
 }
 
-/* Shell */
+/* ================= SHELL ================= */
 .interviewShell {
   height: 100%;
   max-width: 1280px;
@@ -25,39 +27,29 @@
   flex-direction: column;
 }
 
-/* Header */
+/* ================= HEADER ================= */
 .header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: 14px;
 }
 
-.title {
+.header h1 {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   color: var(--primary);
   font-weight: 700;
+  font-size: 20px;
 }
 
-.counter {
-  color: var(--muted);
+.header span {
   font-size: 13px;
+  color: var(--muted);
 }
 
-/* Progress */
-.progressBar {
-  height: 6px;
-  background: #1f2937;
-  border-radius: 999px;
-  margin-bottom: 16px;
-}
-
-.progress {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary), #22c55e);
-}
-
-/* Layout */
+/* ================= LAYOUT ================= */
 .layout {
   flex: 1;
   display: grid;
@@ -65,108 +57,139 @@
   gap: 24px;
 }
 
-/* Question */
+/* ================= QUESTION ================= */
 .questionCard {
-  background: linear-gradient(180deg, #111827, #020617);
+  background: linear-gradient(180deg, #111827, var(--bg-dark));
   border-radius: 22px;
   padding: 28px;
   display: flex;
   flex-direction: column;
-  color: white;
+  color: #e5e7eb;
 }
 
-.questionText {
+.questionCard h2 {
   font-size: 22px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  line-height: 1.4;
 }
 
-/* Textarea */
-.textarea {
+/* ================= TEXTAREA ================= */
+.questionCard textarea {
   flex: 1;
-  background: #020617;
+  background: var(--bg-dark);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   padding: 18px;
+  font-size: 15px;
   color: #e5e7eb;
   resize: none;
   overflow: hidden;
+  outline: none;
 }
 
-/* Actions */
+/* ================= ACTIONS ================= */
 .actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
+  align-items: center;
+  margin-top: 16px;
 }
 
-.iconBtn {
-  background: #1f2937;
+.actions button {
   border: none;
-  padding: 10px;
-  border-radius: 12px;
   cursor: pointer;
-  color: var(--muted);
 }
 
+/* Left controls (mic + camera) */
+.leftControls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.leftControls button {
+  background: #1f2937;
+  padding: 12px;
+  border-radius: 14px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.leftControls button:hover {
+  color: white;
+}
+
+/* Icon sizing */
+.leftControls button svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Active mic pulse */
 .micActive {
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.35);
   animation: micPulse 1.5s infinite;
+  color: white;
 }
 
-.nextBtn {
+/* Camera active state */
+.cameraActive {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  color: white;
+}
+
+/* Next Button */
+.nextButton {
   background: var(--primary);
   color: white;
-  border: none;
+  padding: 12px 22px;
   border-radius: 14px;
-  padding: 12px 20px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Camera */
+.nextButton:hover {
+  filter: brightness(1.05);
+}
+
+/* ================= CAMERA ================= */
 .cameraCard {
-  background: linear-gradient(180deg, #0b1220, #020617);
+  background: linear-gradient(180deg, var(--bg-soft), var(--bg-dark));
   border-radius: 22px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  
-}
-
-.cameraActive {
-  box-shadow: 0 0 0 3px rgba(11, 235, 247, 0.6);
-  animation: recordPulse 1.8s infinite;
 }
 
 .cameraHeader {
-  padding: 10px 14px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
   display: flex;
-  justify-content: space-between;
-}
-
-.cameraToggle {
-  background: none;
-  border: none;
-  color: var(--muted);
+  align-items: center;
+  gap: 8px;
+  color: #e5e7eb;
 }
 
 .videoBox {
   flex: 1;
-  background: black;
   position: relative;
-  border-bottom-left-radius: 22px;
-  border-bottom-right-radius: 22px;
+  background: black;
   overflow: hidden;
 }
 
-.video {
+.videoBox video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
-  border-radius: inherit;
   transform: scaleX(-1);
 }
 
+/* Camera overlay */
 .overlay {
   position: absolute;
   inset: 0;
@@ -174,66 +197,103 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   color: var(--muted);
+  background: rgba(2, 6, 23, 0.65);
 }
 
+.overlay button {
+  background: var(--primary);
+  color: white;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 600;
+}
+
+/* Camera error */
 .error {
   position: absolute;
   bottom: 12px;
   left: 12px;
   right: 12px;
   background: var(--danger);
-  padding: 10px;
+  padding: 10px 12px;
   border-radius: 12px;
+  color: white;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Feedback / Loading */
-.feedbackCard,
+/* ================= LOADING ================= */
 .loading {
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-.primaryBtn {
-  margin-top: 20px;
-  background: var(--primary);
-  border: none;
-  padding: 12px 20px;
-  border-radius: 14px;
-  color: white;
-}
-
-.muted {
-  color: var(--muted);
+  font-weight: 600;
 }
 
 .spinner {
   animation: spin 1s linear infinite;
+  margin-bottom: 12px;
 }
 
+/* ================= FEEDBACK ================= */
+.feedbackCard {
+  height: 100%;
+  background: linear-gradient(180deg, #111827, var(--bg-dark));
+  border-radius: 24px;
+  padding: 40px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.feedbackCard h2 {
+  font-size: 26px;
+}
+
+.feedbackCard .muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.feedbackCard button {
+  margin-top: 18px;
+  background: var(--primary);
+  padding: 12px 22px;
+  border-radius: 14px;
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+/* ================= ANIMATIONS ================= */
 @keyframes micPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45);
   }
   100% {
     box-shadow: 0 0 0 14px rgba(59, 130, 246, 0);
   }
 }
 
-@keyframes recordPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
-  }
-  100% {
-    box-shadow: 0 0 0 18px rgba(239, 68, 68, 0);
-  }
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
   }
 }

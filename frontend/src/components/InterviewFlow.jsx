@@ -1,185 +1,101 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
-  Video,
   VideoOff,
+  Mic,
+  MicOff,
   ChevronRight,
-  AlertCircle,
   Loader2,
-  Camera,
+  Video,
   MessageSquare,
 } from "lucide-react";
+import CameraFeed from "./CameraFeed";
 import styles from "./InterviewFlow.module.css";
 
-const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3000";
+const API_BASE =
+  (typeof import.meta !== "undefined" &&
+    import.meta.env?.VITE_API_URL) ||
+  "http://localhost:3000";
+
 const TOTAL_QUESTIONS = 6;
 
-export default function InterviewFlow({ role = "Frontend Developer", mode = "Technical", difficulty = "Medium", onBack }) {
+export default function InterviewFlow({
+  role = "Frontend Developer",
+  mode = "Technical",
+  difficulty = "Medium",
+  onBack,
+}) {
+  /* ================= STATE ================= */
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [currentQuestion, setCurrentQuestion] = useState("");
+  const [question, setQuestion] = useState("");
   const [askedQuestions, setAskedQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
-  const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [voice, setVoice] = useState(null);
-
   const [answer, setAnswer] = useState("");
   const [listening, setListening] = useState(false);
+
   const [cameraOn, setCameraOn] = useState(false);
-  const [mediaOn, setMediaOn] = useState(false);
   const [mediaError, setMediaError] = useState("");
 
   const [interviewComplete, setInterviewComplete] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [generatingFeedback, setGeneratingFeedback] = useState(false);
 
+  /* ================= REFS ================= */
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // Google STT refs
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
-  const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const silenceTimerRef = useRef(null);
-  const minTimePassedRef = useRef(false);
 
-  /* ---------------- Lock page scroll ---------------- */
+  /* ================= PAGE LOCK ================= */
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => (document.body.style.overflow = "");
   }, []);
 
-  /* ---------------- Load First Question ---------------- */
-  useEffect(() => {
-    const fetchFirst = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.post(
-          `${API_BASE}/api/questions/next-question`,
-          {
-            role,
-            mode,
-            difficulty,
-            questionNumber: 1,
-            lastQuestion: "",
-            lastAnswer: "",
-          },
-          { withCredentials: true }
-        );
-        const data = res.data;
-        setCurrentQuestion(data.question || "");
-        setAskedQuestions([data.question || ""]);
-      } catch (e) {
-        setCurrentQuestion("Failed to load question. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFirst();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, mode, difficulty]);
-
-  /* ---------------- Google STT Recording ---------------- */
-  const startRecording = async () => {
+  /* ================= FETCH QUESTION ================= */
+  const fetchQuestion = async (qnNumber, lastQ = "", lastA = "") => {
+    setLoading(true);
     try {
-      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(audioStream);
-      recorderRef.current = recorder;
-      chunksRef.current = [];
-      minTimePassedRef.current = false;
+      const res = await axios.post(
+        `${API_BASE}/api/questions/next-question`,
+        {
+          role,
+          mode,
+          difficulty,
+          questionNumber: qnNumber,
+          lastQuestion: lastQ,
+          lastAnswer: lastA,
+        },
+        { withCredentials: true }
+      );
 
-      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
-      recorder.onstop = sendForSTT;
+      const q = res.data?.question || "";
+      setQuestion(q);
 
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(audioStream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-
-      recorder.start();
-      setListening(true);
-
-      // Minimum 3 seconds before silence detection
-      setTimeout(() => {
-        minTimePassedRef.current = true;
-      }, 3000);
-
-      const dataArray = new Uint8Array(analyser.fftSize);
-
-      const checkSilence = () => {
-        analyser.getByteTimeDomainData(dataArray);
-
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += Math.abs(dataArray[i] - 128);
-        }
-
-        const volume = sum / dataArray.length;
-
-        if (minTimePassedRef.current && volume < 5) {
-          if (!silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(stopRecording, 1000);
-          }
-        } else {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-
-        if (recorder.state === "recording") {
-          requestAnimationFrame(checkSilence);
-        }
-      };
-
-      checkSilence();
-
-      // Hard stop at 60 seconds
-      setTimeout(() => {
-        if (recorder.state === "recording") stopRecording();
-      }, 60000);
-    } catch (err) {
-      console.error("Recording error:", err);
-      setListening(false);
-    }
-  };
-
-  const stopRecording = () => {
-    if (recorderRef.current?.state === "recording") {
-      recorderRef.current.stop();
-      recorderRef.current.stream.getTracks().forEach((t) => t.stop());
-      audioContextRef.current?.close();
-      setListening(false);
-    }
-  };
-
-  const sendForSTT = async () => {
-    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-    
-    if (blob.size === 0) return;
-    
-    const form = new FormData();
-    form.append("audio", blob);
-
-    try {
-      const res = await axios.post(`${API_BASE}/api/stt/speech-to-text`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-        withCredentials: true,
+      setAskedQuestions((prev) => {
+        const copy = [...prev];
+        copy[qnNumber - 1] = q;
+        return copy;
       });
 
-      if (res.data?.text) {
-        setAnswer((prev) => (prev ? prev + " " + res.data.text : res.data.text).trim());
-      }
-    } catch (err) {
-      console.error("STT error:", err.response?.data || err.message);
+      speakQuestion(q);
+    } catch {
+      setQuestion("Failed to load question.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  /* ---------------- Auto-grow textarea ---------------- */
+  /* ================= INITIAL LOAD ================= */
+  useEffect(() => {
+    fetchQuestion(1);
+    // eslint-disable-next-line
+  }, []);
+
+  /* ================= AUTO GROW TEXTAREA ================= */
   useEffect(() => {
     if (!textareaRef.current) return;
     textareaRef.current.style.height = "auto";
@@ -187,79 +103,100 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
       textareaRef.current.scrollHeight + "px";
   }, [answer]);
 
-  /* ---------------- Speak question out loud ---------------- */
-  const selectPreferredVoice = () => {
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    const voices = synth.getVoices();
-    if (!voices || voices.length === 0) return;
-    const englishVoices = voices.filter((v) => (v.lang || "").toLowerCase().startsWith("en"));
-    // Prefer premium/enhanced voices: Google UK/US Enhanced, Microsoft Natural, or Samantha
-    const preferred =
-      englishVoices.find((v) => /enhanced|natural|premium|samantha/i.test(v.name)) ||
-      englishVoices.find((v) => /google.*uk|google.*us/i.test(v.name)) ||
-      englishVoices.find((v) => /microsoft/i.test(v.name)) ||
-      englishVoices.find((v) => /female|uk|us/i.test(v.name)) ||
-      englishVoices[0] ||
-      voices[0];
-    setVoice(preferred || null);
+  /* ================= TTS ================= */
+  const speakQuestion = (text) => {
+    if (!window.speechSynthesis || !text) return;
+
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.9;
+
+    utter.onstart = () => {
+      if (listening) stopRecording();
+    };
+
+    window.speechSynthesis.speak(utter);
   };
 
-  useEffect(() => {
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    // Load voices immediately and also when the list updates
-    const handleVoicesChanged = () => selectPreferredVoice();
-    selectPreferredVoice();
-    synth.onvoiceschanged = handleVoicesChanged;
-    return () => {
-      if (synth) synth.onvoiceschanged = null;
-    };
-  }, []);
+  /* ================= STT ================= */
+  const startRecording = async () => {
+    if (listening) return;
 
-  const speak = (text) => {
-    if (!ttsEnabled || !text) return;
-    const synth = window.speechSynthesis;
-    if (!synth) return;
     try {
-      synth.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      if (voice) utter.voice = voice;
-      utter.lang = (voice && voice.lang) || "en-US";
-      utter.rate = 0.9; // slower and more conversational
-      utter.pitch = 1.0; // neutral natural pitch
-      utter.volume = 0.95; // slightly softer for warmth
-      synth.speak(utter);
-    } catch (_) {
-      // Ignore TTS errors silently
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        await sendForSTT();
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      recorder.start();
+      setListening(true);
+    } catch (err) {
+      console.error("Mic error:", err);
     }
   };
 
-  useEffect(() => {
-    if (currentQuestion) {
-      speak(currentQuestion);
+  const stopRecording = () => {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
     }
-    return () => {
-      window.speechSynthesis?.cancel();
-    };
-  }, [currentQuestion, ttsEnabled]);
+    setListening(false);
+  };
 
-  /* ---------------- Reset per question ---------------- */
-  useEffect(() => {
-    stopRecording();
-    clearTimeout(silenceTimerRef.current);
-    silenceTimerRef.current = null;
-    setAnswer("");
-  }, [index]);
+  const sendForSTT = async () => {
+    if (!chunksRef.current.length) return;
 
-  /* ---------------- Camera helpers ---------------- */
+    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    chunksRef.current = [];
+    if (!blob.size) return;
+
+    const form = new FormData();
+    form.append("file", blob);
+
+    try {
+      const res = await axios.post(
+        `${API_BASE}/api/stt/speech-to-text`,
+        form,
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+
+      if (res.data?.text?.trim()) {
+        setAnswer((prev) =>
+          prev ? `${prev} ${res.data.text}` : res.data.text
+        );
+      }
+    } catch (err) {
+      console.error("STT failed:", err);
+    }
+  };
+
+  /* ================= CAMERA ================= */
   const startCamera = async () => {
-    if (cameraOn) return;
+    if (cameraOn && streamRef.current) return;
+
     try {
-      setMediaError("");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-      videoRef.current.srcObject = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
       setCameraOn(true);
     } catch {
       setMediaError("Camera permission denied");
@@ -269,96 +206,46 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
     setCameraOn(false);
   };
 
-  // Re-attach stream to video when UI re-mounts after loading
-  useEffect(() => {
-    if (!loading && cameraOn && videoRef.current && streamRef.current) {
-      try {
-        videoRef.current.srcObject = streamRef.current;
-      } catch (_) {
-        // ignore re-attach errors
-      }
-    }
-  }, [loading, cameraOn]);
-
-  /* ---------------- Mic toggle (AUTO START CAMERA) ---------------- */
-  const toggleMedia = async () => {
-    if (!mediaOn) {
-      await startCamera();
-      await startRecording();
-      setMediaOn(true);
-    } else {
-      stopRecording();
-      stopCamera();
-      setMediaOn(false);
-    }
-  };
-
-  /* ---------------- Next / Finish ---------------- */
+  /* ================= NEXT ================= */
   const handleNext = async () => {
-    // Save current answer
+    stopRecording();
+
     setAnswers((prev) => {
-      const next = [...prev];
-      next[index] = answer;
-      return next;
+      const copy = [...prev];
+      copy[index] = answer;
+      return copy;
     });
 
-    // If last question, finish
-    if (index >= TOTAL_QUESTIONS - 1) {
+    if (index === TOTAL_QUESTIONS - 1) {
       setInterviewComplete(true);
-      setGeneratingFeedback(true);
-      stopRecording();
       stopCamera();
-      // Simple mock feedback to keep existing UX
+      setGeneratingFeedback(true);
+
       setTimeout(() => {
         setFeedback({
-          score: 80,
-          summary: "Thanks for completing the interview.",
-          details: "We will improve feedback generation soon.",
+          score: 82,
+          summary: "Good technical fundamentals.",
+          details: "AI feedback engine coming soon.",
         });
         setGeneratingFeedback(false);
       }, 1200);
       return;
     }
 
-    // Otherwise fetch next question from backend with context
-    try {
-      const lastQuestion = askedQuestions[index] || "";
-      const lastAnswer = answers[index] || answer || "";
-      const nextNumber = index + 2; // next questionNumber (1-based)
-      setLoading(true);
-      const res = await axios.post(
-        `${API_BASE}/api/questions/next-question`,
-        {
-          role,
-          mode,
-          difficulty,
-          questionNumber: nextNumber,
-          lastQuestion,
-          lastAnswer,
-        },
-        { withCredentials: true }
-      );
-      const data = res.data;
-      const qText = data.question || "";
-      setAskedQuestions((prev) => {
-        const next = [...prev];
-        next[index + 1] = qText;
-        return next;
-      });
-      setCurrentQuestion(qText);
-      setIndex((i) => i + 1);
-    } catch (e) {
-      setCurrentQuestion("Failed to load next question. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    setAnswer("");
+    setIndex((i) => i + 1);
+    fetchQuestion(index + 2, askedQuestions[index], answer);
   };
 
-  /* ---------------- Loading ---------------- */
+  /* ================= LOADING ================= */
   if (loading) {
     return (
       <div className={styles.loading}>
@@ -368,7 +255,7 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     );
   }
 
-  /* ---------------- Feedback ---------------- */
+  /* ================= FEEDBACK ================= */
   if (interviewComplete) {
     return (
       <div className={styles.container}>
@@ -376,16 +263,14 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
           {generatingFeedback ? (
             <>
               <Loader2 className={styles.spinner} />
-              <p>Analyzing your interview…</p>
+              Analyzing…
             </>
           ) : (
             <>
-              <h2>Interview Score: {feedback.score}%</h2>
+              <h2>Score: {feedback.score}%</h2>
               <p>{feedback.summary}</p>
               <p className={styles.muted}>{feedback.details}</p>
-              <button onClick={onBack} className={styles.primaryBtn}>
-                Back to Dashboard
-              </button>
+              <button onClick={onBack}>Back</button>
             </>
           )}
         </div>
@@ -393,79 +278,59 @@ export default function InterviewFlow({ role = "Frontend Developer", mode = "Tec
     );
   }
 
-  const progress = ((index + 1) / TOTAL_QUESTIONS) * 100;
-  const isLast = index === TOTAL_QUESTIONS - 1;
-
-  /* ---------------- UI ---------------- */
+  /* ================= UI ================= */
   return (
     <div className={styles.container}>
       <div className={styles.interviewShell}>
         <header className={styles.header}>
-          <h1 className={styles.title}>
+          <h1>
             <MessageSquare /> {role} Interview
           </h1>
-          <span className={styles.counter}>
+          <span>
             Question {index + 1} / {TOTAL_QUESTIONS}
           </span>
         </header>
 
-        <div className={styles.progressBar}>
-          <div className={styles.progress} style={{ width: `${progress}%` }} />
-        </div>
-
         <div className={styles.layout}>
-          {/* Question */}
           <div className={styles.questionCard}>
-            <h2 className={styles.questionText}>{currentQuestion}</h2>
+            <h2>{question}</h2>
 
             <textarea
               ref={textareaRef}
-              className={styles.textarea}
-              placeholder="Type your answer or use the mic…"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
+              placeholder="Answer here…"
             />
 
             <div className={styles.actions}>
-              <button
-                onClick={toggleMedia}
-                className={`${styles.iconBtn} ${mediaOn ? styles.micActive : ""}`}
-              >
-                {mediaOn ? <Video /> : <VideoOff />}
-              </button>
+              <div className={styles.leftControls}>
+                <button
+                  onClick={listening ? stopRecording : startRecording}
+                  className={listening ? styles.micActive : ""}
+                >
+                  {listening ? <Mic /> : <MicOff />}
+                </button>
 
-              <button onClick={handleNext} className={styles.nextBtn}>
-                {isLast ? "Finish Interview" : "Next"}
-                {!isLast && <ChevronRight />}
+                <button
+                  onClick={cameraOn ? stopCamera : startCamera}
+                  className={cameraOn ? styles.cameraActive : ""}
+                >
+                  {cameraOn ? <Video /> : <VideoOff />}
+                </button>
+              </div>
+
+              <button onClick={handleNext} className={styles.nextButton}>
+                {index === TOTAL_QUESTIONS - 1 ? "Finish" : "Next"}
+                <ChevronRight />
               </button>
             </div>
           </div>
 
-          {/* Camera */}
-          <div
-            className={`${styles.cameraCard} ${
-              cameraOn ? styles.cameraActive : ""
-            }`}
-          >
-            <div className={styles.cameraHeader}>
-              <Camera /> Camera
-            </div>
-
-            <div className={styles.videoBox}>
-              <video ref={videoRef} autoPlay muted playsInline className={styles.video} />
-              {!cameraOn && (
-                <div className={styles.overlay}>
-                  <VideoOff />
-                  <p>Camera Disabled</p>
-                </div>
-              )}
-              {mediaError && (
-                <div className={styles.error}>
-                  <AlertCircle /> {mediaError}
-                </div>
-              )}
-            </div>
-          </div>
+          <CameraFeed
+            videoRef={videoRef}
+            cameraOn={cameraOn}
+            mediaError={mediaError}
+          />
         </div>
       </div>
     </div>
