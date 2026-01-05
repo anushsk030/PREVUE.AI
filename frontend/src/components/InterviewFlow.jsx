@@ -6,9 +6,11 @@ import QuestionCard from "./QuestionCard";
 import styles from "./InterviewFlow.module.css";
 
 const API_BASE =
-  (typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_API_URL) ||
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
   "http://localhost:3000";
+
+// Configure axios to send credentials (cookies) with every request
+axios.defaults.withCredentials = true;
 
 const TOTAL_QUESTIONS = 6;
 
@@ -208,8 +210,8 @@ export default function InterviewFlow({
     setCameraOn(false);
   };
 
-  /* ================= NEXT ================= */
-  const handleNext = async () => {
+  /* ================= NEXT (Updated for silent evaluation) ================= */
+  const handleNext = () => {
     stopRecording();
 
     // Store answer for current question
@@ -219,12 +221,21 @@ export default function InterviewFlow({
       return copy;
     });
 
-    // If all questions answered, show feedback
+    // ================= FIRE-AND-FORGET SILENT EVALUATION =================
+    axios.post(`${API_BASE}/api/questions/evaluate`, {
+      question,
+      answer: answer || "",
+      questionNumber: index + 1
+    }).catch(console.error);
+
+    // ================= MOVE TO NEXT QUESTION =================
     if (index === TOTAL_QUESTIONS - 1) {
+      // Interview complete
       setInterviewComplete(true);
       stopCamera();
       setGeneratingFeedback(true);
 
+      // Simulate AI feedback (can be replaced with real evaluation aggregation)
       setTimeout(() => {
         const randomScore = Math.floor(Math.random() * (40 - 20 + 1)) + 20;
         setFeedback({
@@ -237,7 +248,7 @@ export default function InterviewFlow({
       return;
     }
 
-    // Move to next question and fetch it
+    // Move to next question instantly
     const nextIndex = index + 1;
     setIndex(nextIndex);
     setAnswer("");
@@ -245,19 +256,13 @@ export default function InterviewFlow({
   };
 
   const handleMicToggle = () => {
-    if (listening) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    if (listening) stopRecording();
+    else startRecording();
   };
 
   const handleCameraToggle = () => {
-    if (cameraOn) {
-      stopCamera();
-    } else {
-      startCamera();
-    }
+    if (cameraOn) stopCamera();
+    else startCamera();
   };
 
   /* ================= LOADING ================= */

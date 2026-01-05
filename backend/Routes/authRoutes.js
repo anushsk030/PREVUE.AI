@@ -26,7 +26,7 @@ router.post("/signup", async (req, res) => {
     });
 
     // Create token
-    const token = jwt.sign({ email: user.email }, process.env.ACCESS_TOKEN_SECRET);
+    const token = jwt.sign({ _id: user._id, email: user.email }, process.env.ACCESS_TOKEN_SECRET);
 
     // Set cookie
     res.cookie("token", token, {
@@ -60,7 +60,7 @@ router.post("/signin", async (req, res) => {
     user.lastSignIn = new Date();
     await user.save();
 
-    const token = jwt.sign({ email: user.email }, process.env.ACCESS_TOKEN_SECRET);
+    const token = jwt.sign({ _id: user._id, email: user.email }, process.env.ACCESS_TOKEN_SECRET);
 
     res.cookie("token", token, {
         httpOnly: true,
