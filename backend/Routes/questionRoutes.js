@@ -506,4 +506,82 @@ router.get("/user-interviews", async (req, res) => {
   }
 });
 
+/* ================= GET DASHBOARD ANALYTICS ================= */
+router.get("/analytics", async (req, res) => {
+  const userId = req.user?._id || req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: "User not authenticated" });
+  }
+
+  try {
+    const interviews = await InterviewResult.find({ userId })
+      .select("role mode difficulty totalScore overallCorrectness overallDepth overallPracticalExperience overallStructure createdAt")
+      .sort({ createdAt: 1 });
+
+    if (interviews.length === 0) {
+      return res.json({
+        totalInterviews: 0,
+        averageScore: 0,
+        recentScore: 0,
+        skillTrends: [],
+        performanceByDifficulty: [],
+        recentInterviews: []
+      });
+    }
+
+    // Calculate stats
+    const scores = interviews.map(i => i.totalScore || 0);
+    const totalInterviews = interviews.length;
+    const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / totalInterviews);
+    const recentScore = scores[scores.length - 1];
+
+    // Skill trends over time (last 10 interviews)
+    const recentForTrends = interviews.slice(-10);
+    const skillTrends = recentForTrends.map((interview, idx) => ({
+      interview: idx + 1,
+      correctness: Math.round((interview.overallCorrectness || 0) * 10),
+      depth: Math.round((interview.overallDepth || 0) * 10),
+      practical: Math.round((interview.overallPracticalExperience || 0) * 10),
+      structure: Math.round((interview.overallStructure || 0) * 10),
+      date: interview.createdAt
+    }));
+
+    // Performance by difficulty
+    const difficultyGroups = { Easy: [], Medium: [], Hard: [] };
+    interviews.forEach(i => {
+      if (difficultyGroups[i.difficulty]) {
+        difficultyGroups[i.difficulty].push(i.totalScore || 0);
+      }
+    });
+
+    const performanceByDifficulty = Object.keys(difficultyGroups).map(difficulty => ({
+      difficulty,
+      averageScore: difficultyGroups[difficulty].length > 0
+        ? Math.round(difficultyGroups[difficulty].reduce((a, b) => a + b, 0) / difficultyGroups[difficulty].length)
+        : 0,
+      count: difficultyGroups[difficulty].length
+    }));
+
+    // Recent interviews (last 5)
+    const recentInterviews = interviews.slice(-5).reverse().map(i => ({
+      role: i.role,
+      score: i.totalScore,
+      date: i.createdAt
+    }));
+
+    return res.json({
+      totalInterviews,
+      averageScore,
+      recentScore,
+      skillTrends,
+      performanceByDifficulty,
+      recentInterviews
+    });
+  } catch (err) {
+    console.error("Analytics fetch error:", err);
+    return res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+});
+
 export default router;
