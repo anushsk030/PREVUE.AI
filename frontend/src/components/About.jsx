@@ -1,7 +1,7 @@
 import { CheckCircle, Zap, Users, Target } from "lucide-react"
 import styles from "./About.module.css"
 
-export default function About() {
+export default function About({ onGetStarted }) {
   const features = [
     {
       icon: <Zap size={28} />,
@@ -122,7 +122,7 @@ export default function About() {
         <div className={styles.ctaContent}>
           <h2>Ready to Master Your Interviews?</h2>
           <p>Start practicing today and take the first step towards your dream job</p>
-          <button className={styles.ctaButton}>Get Started Now</button>
+          <button className={styles.ctaButton} onClick={onGetStarted}>Get Started Now</button>
         </div>
       </section>
     </div>

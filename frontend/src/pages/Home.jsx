@@ -147,7 +147,7 @@ export default function Home() {
           {currentPage === "history" && <InterviewHistory />}
 
           {/* ABOUT */}
-          {currentPage === "about" && <About />}
+          {currentPage === "about" && <About onGetStarted={() => setCurrentPage("interview")} />}
 
           {/* INTERVIEW SETUP */}
           {currentPage === "interview" && (
