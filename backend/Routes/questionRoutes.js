@@ -113,7 +113,7 @@ Rules:
 - Avoid repeating questions or topics from the conversation
 - Use simple, clear language
 - Ask for definitions, explanations of concepts, or comparisons
-${role === "Software Developer" ? "- **CRITICAL**: Question MUST be about Data Structures, Algorithms, OOP concepts, or SQL. NO other topics allowed." : ""}
+${role === "Software Developer" && mode === "Technical" ? "- **CRITICAL**: Question MUST be about Data Structures, Algorithms, OOP concepts, or SQL. NO other topics allowed." : ""}
 `;
 
   try {
@@ -559,7 +559,7 @@ router.get("/analytics", async (req, res) => {
     // Calculate stats
     const scores = interviews.map(i => i.totalScore || 0);
     const totalInterviews = interviews.length;
-    const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / totalInterviews);
+    const averageScore = scores.reduce((a, b) => a + b, 0) / totalInterviews;
     const recentScore = scores[scores.length - 1];
 
     // Skill trends over time (last 10 interviews)

@@ -41,11 +41,11 @@ export default function InterviewHistory() {
   const calculateStats = (data) => {
     if (!data.length) return
 
-    const scores = data.map(d => (d.totalScore || 0) * 10)
+    const scores = data.map(d => d.totalScore || 0)
     const totalInterviews = data.length
-    const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / totalInterviews)
-    const bestScore = Math.max(...scores)
-    const recentScore = scores[0]
+    const averageScore = Math.round((scores.reduce((a, b) => a + b, 0) / totalInterviews) * 10)
+    const bestScore = Math.round(Math.max(...scores) * 10)
+    const recentScore = Math.round(scores[0] * 10)
 
     setStats({
       totalInterviews,
