@@ -519,6 +519,7 @@ export default function InterviewFlow({
             videoRef={videoRef}
             cameraOn={cameraOn}
             mediaError={mediaError}
+            sessionActive={!loading && !interviewComplete}
           />
         </div>
       </div>

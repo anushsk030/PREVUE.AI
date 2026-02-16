@@ -11,7 +11,7 @@ export default function ForgotPasswordForm({ onSuccess, onBack }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setError(""); 
     setMessage("");
     setLoading(true);
 
