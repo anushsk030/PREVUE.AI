@@ -1,128 +1,314 @@
-import React, { useEffect, useState, useRef } from "react";
-import { Video, VideoOff, AlertCircle, UserX, Users } from "lucide-react";
-import styles from "./CameraFeed.module.css";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { FaceMesh } from "@mediapipe/face_mesh";
+import { UserX, Users, Video, VideoOff } from "lucide-react";
+import styles from "./CameraFeed.module.css";
+
+const PROCESS_INTERVAL = 100; // 10 FPS
+const SMOOTHING = 0.2;
 
 export default function CameraFeed({
   videoRef,
   cameraOn,
-  mediaError,
+  sessionActive,
+  onSessionComplete,
 }) {
-  const [noFaceDetected, setNoFaceDetected] = useState(false);
-  const [multipleFacesDetected, setMultipleFacesDetected] = useState(false);
   const faceMeshRef = useRef(null);
+  const animationRef = useRef(null);
+  const lastProcessTimeRef = useRef(0);
 
-  useEffect(() => {
-    let faceMesh;
-    let animationFrameId;
+  const prevSessionRef = useRef(sessionActive);
 
-    if (cameraOn) {
-      // Initialize FaceMesh
-      faceMesh = new FaceMesh({
-        locateFile: (file) =>
-          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-      });
+  const [warning, setWarning] = useState(null);
 
-      faceMesh.setOptions({
-        maxNumFaces: 2,
-        refineLandmarks: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
+  const analyticsRef = useRef({
+    totalFrames: 0,
+    faceDetectedFrames: 0,
+    eyeContactFrames: 0,
+    confidenceSum: 0,
+    smoothedConfidence: 0,
+    headMovementCount: 0,
+    blinkCount: 0,
+  });
 
-      faceMesh.onResults((results) => {
-        const faceCount = results.multiFaceLandmarks ? results.multiFaceLandmarks.length : 0;
-        
-        if (faceCount === 0) {
-          setNoFaceDetected(true);
-          setMultipleFacesDetected(false);
-        } else if (faceCount > 1) {
-          setNoFaceDetected(false);
-          setMultipleFacesDetected(true);
-        } else {
-          setNoFaceDetected(false);
-          setMultipleFacesDetected(false);
-        }
-      });
+  const prevMovementRef = useRef(null);
+  const eyeClosedFramesRef = useRef(0);
 
-      let isProcessing = false;
-      const processVideo = async () => {
-        if (!faceMesh) return;
-        
-        if (
-          videoRef.current &&
-          videoRef.current.readyState === 4 &&
-          videoRef.current.videoWidth > 0 &&
-          !isProcessing
-        ) {
-          isProcessing = true;
-          try {
-            await faceMesh.send({ image: videoRef.current });
-          } catch (err) {
-            console.error("FaceMesh error:", err);
-          }
-          isProcessing = false;
-        }
-        animationFrameId = requestAnimationFrame(processVideo);
-      };
+  // =============================
+  // IMPROVED ANALYSIS
+  // =============================
+  const analyzeBehavior = useCallback((landmarks) => {
+    const noseTip = landmarks[1];
+    const faceLeft = landmarks[234];
+    const faceRight = landmarks[454];
+    const chinBottom = landmarks[152];
+    const foreheadCenter = landmarks[10];
 
-      processVideo();
-    } else {
-      setNoFaceDetected(false);
-      setMultipleFacesDetected(false);
+    const leftEyeTop = landmarks[159];
+    const leftEyeBottom = landmarks[145];
+    const rightEyeTop = landmarks[386];
+    const rightEyeBottom = landmarks[374];
+
+    const faceWidth = Math.abs(faceRight.x - faceLeft.x);
+    const faceHeight = Math.abs(chinBottom.y - foreheadCenter.y);
+
+    const centerX = (faceLeft.x + faceRight.x) / 2;
+    const centerY = (foreheadCenter.y + chinBottom.y) / 2;
+
+    const dx = Math.abs(noseTip.x - centerX) / faceWidth;
+    const dy = Math.abs(noseTip.y - centerY) / faceHeight;
+
+    const movement = dx + dy;
+
+    // Eye contact
+    if (dx < 0.12 && dy < 0.12)
+      analyticsRef.current.eyeContactFrames++;
+
+    // Stable movement detection
+    if (
+      prevMovementRef.current &&
+      Math.abs(prevMovementRef.current - movement) > 0.08
+    ) {
+      analyticsRef.current.headMovementCount++;
     }
 
-    return () => {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      if (faceMesh) {
-        faceMesh.close();
+    prevMovementRef.current = movement;
+
+    // Blink detection
+    const eyeOpen =
+      (Math.abs(leftEyeTop.y - leftEyeBottom.y) +
+        Math.abs(rightEyeTop.y - rightEyeBottom.y)) /
+      2 /
+      faceHeight;
+
+    if (eyeOpen < 0.008) {
+      eyeClosedFramesRef.current++;
+    } else {
+      if (eyeClosedFramesRef.current > 2)
+        analyticsRef.current.blinkCount++;
+      eyeClosedFramesRef.current = 0;
+    }
+
+    // Confidence
+    const eyeScore = Math.min(100, eyeOpen * 9000);
+    const positionScore = 100 - movement * 120;
+    const rawConfidence =
+      eyeScore * 0.4 + positionScore * 0.6;
+
+    analyticsRef.current.smoothedConfidence =
+      analyticsRef.current.smoothedConfidence *
+        (1 - SMOOTHING) +
+      rawConfidence * SMOOTHING;
+
+    analyticsRef.current.confidenceSum +=
+      analyticsRef.current.smoothedConfidence;
+
+    analyticsRef.current.faceDetectedFrames++;
+  }, []);
+
+  // =============================
+  // FaceMesh Setup
+  // =============================
+  useEffect(() => {
+    const faceMesh = new FaceMesh({
+      locateFile: (file) =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 2,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6,
+    });
+
+    faceMesh.onResults((results) => {
+      const faceCount =
+        results.multiFaceLandmarks?.length || 0;
+
+      if (faceCount === 0) {
+        setWarning("noFace");
+      } else if (faceCount > 1) {
+        setWarning("multipleFaces");
+      } else {
+        setWarning(null);
+        if (sessionActive)
+          analyzeBehavior(
+            results.multiFaceLandmarks[0]
+          );
+      }
+
+      if (sessionActive)
+        analyticsRef.current.totalFrames++;
+    });
+
+    faceMeshRef.current = faceMesh;
+
+    return () => faceMesh.close();
+  }, [analyzeBehavior, sessionActive]);
+
+  // =============================
+  // Video Processing Loop
+  // =============================
+  useEffect(() => {
+    if (!cameraOn) return;
+
+    const processVideo = async () => {
+      const now = Date.now();
+
+      if (
+        videoRef.current &&
+        videoRef.current.readyState === 4 &&
+        now - lastProcessTimeRef.current >
+          PROCESS_INTERVAL
+      ) {
+        lastProcessTimeRef.current = now;
+
+        await faceMeshRef.current?.send({
+          image: videoRef.current,
+        });
+      }
+
+      animationRef.current =
+        requestAnimationFrame(processVideo);
+    };
+
+    processVideo();
+
+    return () =>
+      cancelAnimationFrame(animationRef.current);
+  }, [cameraOn, videoRef]);
+
+  // =============================
+  // FINAL REPORT (TRUE → FALSE)
+  // =============================
+  useEffect(() => {
+    console.log("Session state changed:", { prev: prevSessionRef.current, current: sessionActive });
+    
+    const generateReport = () => {
+      const data = analyticsRef.current;
+
+      console.log("Generating report, data:", data);
+
+      if (data.faceDetectedFrames === 0) {
+        console.log("⚠ No interview data collected.");
+        return;
+      }
+
+      const avgConfidence = Math.round(
+        data.confidenceSum /
+          data.faceDetectedFrames
+      );
+
+      const eyeContact = Math.round(
+        (data.eyeContactFrames /
+          data.faceDetectedFrames) *
+          100
+      );
+
+      const stability = Math.round(
+        100 -
+        Math.min(
+          100,
+          (data.headMovementCount /
+            data.faceDetectedFrames) *
+            100
+        )
+      );
+
+      const facePresence = Math.round(
+        (data.faceDetectedFrames /
+          data.totalFrames) *
+          100
+      );
+
+      const blinkRate = Math.round(
+        data.blinkCount /
+          (data.faceDetectedFrames / 60)
+      );
+
+      const professionalism = Math.round(
+        avgConfidence * 0.3 +
+          eyeContact * 0.25 +
+          stability * 0.2 +
+          facePresence * 0.15 +
+          (100 - blinkRate) * 0.1
+      );
+
+      console.log("\n" + "=".repeat(65));
+      console.log("📊 BEHAVIORAL ANALYSIS REPORT");
+      console.log("=".repeat(65));
+      console.log("\n🎯 OVERALL SCORES:");
+      console.log(`   🏆 Professionalism Score:     ${professionalism}%`);
+      console.log(`   ✅ Average Confidence:        ${avgConfidence}%`);
+      console.log(`   👁️  Eye Contact:              ${eyeContact}%`);
+      console.log(`   🎯 Stability Score:           ${stability}%`);
+      console.log(`   📹 Face Presence:             ${facePresence}%`);
+      console.log(`   😊 Blink Rate:                ${blinkRate} blinks/min`);
+      console.log("\n📈 DETAILED METRICS:");
+      console.log(`   📊 Total Frames Analyzed:     ${data.totalFrames}`);
+      console.log(`   ✨ Face Detected Frames:      ${data.faceDetectedFrames}`);
+      console.log(`   👀 Eye Contact Frames:        ${data.eyeContactFrames}`);
+      console.log(`   🔄 Head Movement Count:       ${data.headMovementCount}`);
+      console.log(`   👁️  Total Blinks:             ${data.blinkCount}`);
+      console.log("=".repeat(65) + "\n");
+
+      if (onSessionComplete) {
+        onSessionComplete({
+          avgConfidence,
+          eyeContact,
+          stability,
+          facePresence,
+          blinkRate,
+          professionalism,
+        });
       }
     };
-  }, [cameraOn, videoRef]);
+
+    if (
+      prevSessionRef.current === true &&
+      sessionActive === false
+    ) {
+      console.log("✅ Session ended, generating report...");
+      generateReport();
+    }
+
+    prevSessionRef.current = sessionActive;
+
+    // Cleanup: Generate report on unmount if session was active
+    return () => {
+      if (prevSessionRef.current === true && analyticsRef.current.faceDetectedFrames > 0) {
+        console.log("⚠️ Component unmounting with active session, generating final report...");
+        generateReport();
+      }
+    };
+  }, [sessionActive, onSessionComplete]);
 
   return (
     <div className={styles.cameraCard}>
       <div className={styles.cameraHeader}>
-        <Video /> Camera
+        {cameraOn ? <Video size={16} /> : <VideoOff size={16} />}
+        Camera
       </div>
 
       <div className={styles.videoBox}>
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-        />
+        <video ref={videoRef} autoPlay muted playsInline />
 
-        {cameraOn && noFaceDetected && (
+        {warning === "noFace" && (
           <div className={styles.faceWarningOverlay}>
             <div className={styles.faceWarningPopup}>
-              <UserX size={32} />
+              <UserX size={28} />
               <h4>Face Not Detected</h4>
-              <p>Please ensure your face is clearly visible and within the camera frame.</p>
+              <p>Please stay visible in the frame.</p>
             </div>
           </div>
         )}
 
-        {cameraOn && multipleFacesDetected && (
+        {warning === "multipleFaces" && (
           <div className={styles.faceWarningOverlay}>
             <div className={styles.faceWarningPopup}>
-              <Users size={32} />
+              <Users size={28} />
               <h4>Multiple Faces Detected</h4>
-              <p>Please ensure you are the only person visible in the camera frame.</p>
+              <p>Only one person should appear.</p>
             </div>
-          </div>
-        )}
-
-        {!cameraOn && (
-          <div className={styles.overlay}>
-            <VideoOff />
-          </div>
-        )}
-
-        {mediaError && (
-          <div className={styles.error}>
-            <AlertCircle /> {mediaError}
           </div>
         )}
       </div>
