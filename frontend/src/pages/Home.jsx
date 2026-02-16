@@ -7,6 +7,7 @@ import InterviewHistory from "../components/InterviewHistory"
 import Dashboard from "../components/Dashboard"
 import About from "../components/About"
 import ProfileModal from "../components/ProfileModal"
+import LogoutModal from "../components/LogoutModal"
 import styles from "./Home.module.css"
 
 export default function Home() {
@@ -16,6 +17,7 @@ export default function Home() {
   const [user, setUser] = useState(ctxUser ?? { name: "User", avatar: null })
   const [currentPage, setCurrentPage] = useState("home")
   const [profileOpen, setProfileOpen] = useState(false)
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false)
 
   // Sync context -> local UI user
   useEffect(() => {
@@ -59,6 +61,11 @@ export default function Home() {
       console.error("Error saving profile:", error)
       alert("Failed to save profile. Please try again.")
     }
+  }
+
+  const confirmLogout = () => {
+    setLogoutModalOpen(false)
+    handleLogout()
   }
 
   return (
@@ -122,8 +129,17 @@ export default function Home() {
               />
             </button>
 
-            <button onClick={handleLogout} className={styles.logoutBtn}>
-              Log Out
+            <button
+              className={styles.logoutBtn}
+              onClick={() => setLogoutModalOpen(true)}
+              aria-label="Logout"
+              title="Logout"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
             </button>
 
           </nav>
@@ -193,6 +209,13 @@ export default function Home() {
           initialAvatar={user?.avatar ?? null}
           onClose={() => setProfileOpen(false)}
           onSave={handleSaveProfile}
+        />
+      )}
+
+      {logoutModalOpen && (
+        <LogoutModal
+          onConfirm={confirmLogout}
+          onCancel={() => setLogoutModalOpen(false)}
         />
       )}
 
