@@ -32,12 +32,20 @@ function App() {
     localStorage.removeItem("user");
   };
 
+  const updateUser = (userData) => {
+    setUser((prev) => {
+      const updated = { ...prev, ...userData };
+      localStorage.setItem("user", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   if (loading) {
     return <div className={styles.loading}>Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ user, handleLogin, handleLogout }}>
+    <AuthContext.Provider value={{ user, handleLogin, handleLogout, updateUser }}>
       <BrowserRouter>
         <Routes>
           {/* Reset password route MUST be accessible without login */}

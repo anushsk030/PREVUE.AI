@@ -2,8 +2,16 @@ import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import userModel from "../models/user.js";
 import sendEmail from "../utils/sendEmail.js";
+import upload from "../config/multerConfig.js";
+import { authenticateToken } from "../Middlewares/authMiddleware.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -176,6 +184,96 @@ router.post("/reset-password/:token", async (req, res) => {
     res.status(200).json({ message: "Password reset successful" });
   } catch (err) {
     res.status(500).json({ message: "Reset password failed" });
+  }
+});
+
+/* =========================
+   GET USER PROFILE
+========================= */
+router.get("/profile", authenticateToken, async (req, res) => {
+  try {
+    const user = await userModel.findById(req.user._id).select("-password -resetPasswordToken -resetPasswordExpire");
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ user });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+});
+
+/* =========================
+   UPLOAD PROFILE IMAGE
+========================= */
+router.post("/upload-profile-image", authenticateToken, upload.single("profileImage"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const user = await userModel.findById(req.user._id);
+    
+    if (!user) {
+      // Delete uploaded file if user not found
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Delete old profile image if exists
+    if (user.profileImage) {
+      const oldImagePath = path.join(__dirname, "..", user.profileImage);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Save the new profile image path
+    user.profileImage = `/uploads/profile-images/${req.file.filename}`;
+    await user.save();
+
+    res.status(200).json({ 
+      message: "Profile image uploaded successfully",
+      profileImage: user.profileImage
+    });
+  } catch (err) {
+    // Delete uploaded file in case of error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ message: "Failed to upload profile image" });
+  }
+});
+
+/* =========================
+   DELETE PROFILE IMAGE
+========================= */
+router.delete("/delete-profile-image", authenticateToken, async (req, res) => {
+  try {
+    const user = await userModel.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.profileImage) {
+      return res.status(400).json({ message: "No profile image to delete" });
+    }
+
+    // Delete the image file
+    const imagePath = path.join(__dirname, "..", user.profileImage);
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+
+    // Update user document
+    user.profileImage = null;
+    await user.save();
+
+    res.status(200).json({ message: "Profile image deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete profile image" });
   }
 });
 

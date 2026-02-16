@@ -22,14 +22,50 @@ export default function Home() {
     if (ctxUser) setUser(ctxUser)
   }, [ctxUser])
 
-  const handleSaveProfile = (newData) => {
-    setUser((prev) => ({ ...prev, ...newData }))
+  const handleSaveProfile = async (newData) => {
+    try {
+      // If there's a new avatar file, upload it first
+      if (newData.avatarFile) {
+        const formData = new FormData()
+        formData.append("profileImage", newData.avatarFile)
 
-    if (typeof updateUser === "function") {
-      updateUser(newData)
+        const response = await fetch("http://localhost:3000/api/upload-profile-image", {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          alert(errorData.message || "Failed to upload profile image")
+          return
+        }
+
+        const data = await response.json()
+        
+        // Update with the server-returned image URL
+        const updatedData = {
+          name: newData.name,
+          avatar: `http://localhost:3000${data.profileImage}`,
+        }
+        
+        setUser((prev) => ({ ...prev, ...updatedData }))
+        if (typeof updateUser === "function") {
+          updateUser(updatedData)
+        }
+      } else {
+        // No new file, just update the name
+        setUser((prev) => ({ ...prev, name: newData.name }))
+        if (typeof updateUser === "function") {
+          updateUser({ name: newData.name })
+        }
+      }
+
+      setProfileOpen(false)
+    } catch (error) {
+      console.error("Error saving profile:", error)
+      alert("Failed to save profile. Please try again.")
     }
-
-    setProfileOpen(false)
   }
 
   return (

@@ -14,6 +14,8 @@ export default function ProfileModal({ initialName = "", initialAvatar = null, o
   const [name, setName] = useState(initialName ?? "")
   const [avatarPreview, setAvatarPreview] = useState(initialAvatar ?? "/placeholder-avatar.png")
   const [selectedFile, setSelectedFile] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [fileError, setFileError] = useState("")
   const fileRef = useRef(null)
   const lastBlobRef = useRef(null)
 
@@ -48,6 +50,21 @@ export default function ProfileModal({ initialName = "", initialAvatar = null, o
     const file = e.target.files?.[0]
     if (!file) return
 
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      setFileError('Please select a valid image file (JPEG, PNG, GIF, or WebP)')
+      return
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError('Image size must be less than 5MB')
+      return
+    }
+
+    setFileError('')
+
     // revoke previous blob url if any
     if (lastBlobRef.current) {
       URL.revokeObjectURL(lastBlobRef.current)
@@ -68,13 +85,21 @@ export default function ProfileModal({ initialName = "", initialAvatar = null, o
     }
     setSelectedFile(null)
     setAvatarPreview("/placeholder-avatar.png")
-    // Optionally, inform parent that avatar was removed by calling onSave({ name, avatar: null })
+    setFileError('')
   }, [])
 
-  const handleSave = useCallback(() => {
-    // If a new file was chosen, provide it; otherwise pass the current preview URL
-    const payload = selectedFile ? { name: name.trim(), avatarFile: selectedFile } : { name: name.trim(), avatar: avatarPreview }
-    onSave(payload)
+  const handleSave = useCallback(async () => {
+    if (!name.trim()) {
+      return
+    }
+    setIsLoading(true)
+    try {
+      // If a new file was chosen, provide it; otherwise pass the current preview URL
+      const payload = selectedFile ? { name: name.trim(), avatarFile: selectedFile } : { name: name.trim(), avatar: avatarPreview }
+      await onSave(payload)
+    } finally {
+      setIsLoading(false)
+    }
   }, [name, selectedFile, avatarPreview, onSave])
 
   return (
@@ -90,33 +115,50 @@ export default function ProfileModal({ initialName = "", initialAvatar = null, o
         aria-modal="true"
         aria-label="Edit profile"
       >
-        <h3 className={styles.title}>Edit Profile</h3>
+        <div className={styles.header}>
+          <h3 className={styles.title}>Edit Profile</h3>
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={isLoading}
+          >
+            ×
+          </button>
+        </div>
 
-        <div className={styles.avatarRow}>
-          <img
-            src={avatarPreview}
-            alt="Profile preview"
-            className={styles.avatarPreview}
-            onError={(e) => {
-              e.currentTarget.onerror = null
-              e.currentTarget.src = "/images/placeholder-avatar.png"
-            }}
-          />
+        <div className={styles.avatarSection}>
+          <div className={styles.avatarWrapper}>
+            <img
+              src={avatarPreview}
+              alt="Profile preview"
+              className={styles.avatarPreview}
+              onError={(e) => {
+                e.currentTarget.onerror = null
+                e.currentTarget.src = "/images/placeholder-avatar.png"
+              }}
+            />
+            {selectedFile && <div className={styles.avatarBadge}>New</div>}
+          </div>
 
           <div className={styles.avatarControls}>
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
               onChange={handleFileChange}
               style={{ display: "none" }}
+              disabled={isLoading}
             />
 
             <button
               type="button"
               className={styles.fileBtn}
               onClick={() => fileRef.current?.click()}
+              disabled={isLoading}
             >
+              <span className={styles.uploadIcon}>📷</span>
               Change Photo
             </button>
 
@@ -124,41 +166,62 @@ export default function ProfileModal({ initialName = "", initialAvatar = null, o
               type="button"
               className={styles.removeBtn}
               onClick={handleRemove}
+              disabled={isLoading}
             >
               Remove
             </button>
+            
+            <p className={styles.fileHint}>Max 5MB • JPG, PNG, GIF, WebP</p>
           </div>
         </div>
 
+        {fileError && (
+          <div className={styles.errorMessage}>
+            <span className={styles.errorIcon}>⚠️</span>
+            {fileError}
+          </div>
+        )}
+
         <label className={styles.label}>
-          Display name
+          Display Name
           <input
             className={styles.input}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
+            placeholder="Enter your name"
             maxLength={60}
             autoFocus
+            disabled={isLoading}
           />
+          <span className={styles.charCount}>{name.length}/60</span>
         </label>
 
         <div className={styles.actions}>
           <button
             type="button"
-            className={styles.saveBtn}
-            onClick={handleSave}
-            aria-label="Save profile"
+            className={styles.cancelBtn}
+            onClick={onClose}
+            aria-label="Cancel"
+            disabled={isLoading}
           >
-            Save
+            Cancel
           </button>
 
           <button
             type="button"
-            className={styles.cancelBtn}
-            onClick={onClose}
-            aria-label="Cancel"
+            className={`${styles.saveBtn} ${isLoading ? styles.loading : ''}`}
+            onClick={handleSave}
+            aria-label="Save profile"
+            disabled={isLoading || !name.trim()}
           >
-            Cancel
+            {isLoading ? (
+              <>
+                <span className={styles.spinner}></span>
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
           </button>
         </div>
       </div>

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import connectDB from "./utils/db.js";
 import cookieParser from 'cookie-parser';
 
@@ -8,6 +10,8 @@ import authRoutes from "./Routes/authRoutes.js";
 import questionRoutes from "./Routes/questionRoutes.js";
 import sttRoutes from "./Routes/stt.routes.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express()
 const PORT = 3000
@@ -20,6 +24,10 @@ const corsOptions = {
 app.use(express.json());
 app.use(cors(corsOptions));
 app.use(cookieParser());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use("/api", authRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/stt", sttRoutes)
