@@ -56,19 +56,34 @@ export default function Dashboard() {
     )
   }
 
-  // Prepare radar chart data for latest performance
-  const latestSkills = analytics.skillTrends[analytics.skillTrends.length - 1]
-  const radarData = latestSkills ? [
-    { skill: 'Correctness', score: latestSkills.correctness },
-    { skill: 'Depth', score: latestSkills.depth },
-    { skill: 'Practical', score: latestSkills.practical },
-    { skill: 'Structure', score: latestSkills.structure }
-  ] : []
+  // Calculate average skills across all interviews for radar chart
+  const calculateAverageSkills = () => {
+    if (!analytics.skillTrends || analytics.skillTrends.length === 0) return []
+    
+    const totals = analytics.skillTrends.reduce((acc, trend) => {
+      acc.correctness += trend.correctness
+      acc.depth += trend.depth
+      acc.practical += trend.practical
+      acc.structure += trend.structure
+      return acc
+    }, { correctness: 0, depth: 0, practical: 0, structure: 0 })
+    
+    const count = analytics.skillTrends.length
+    
+    return [
+      { skill: 'Correctness', score: Math.round(totals.correctness / count) },
+      { skill: 'Depth', score: Math.round(totals.depth / count) },
+      { skill: 'Practical', score: Math.round(totals.practical / count) },
+      { skill: 'Structure', score: Math.round(totals.structure / count) }
+    ]
+  }
+  
+  const radarData = calculateAverageSkills()
 
   // Normalize difficulty performance to percentage scale for charting
   const performanceByDifficultyData = (analytics.performanceByDifficulty || []).map(item => ({
     ...item,
-    averageScore: Math.min(100, Math.round((item.averageScore || 0) * 10))
+    averageScore: item.averageScore || 0
   }))
 
   return (
@@ -164,7 +179,7 @@ export default function Dashboard() {
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
               <Target size={20} />
-              <h3>Current Skill Assessment</h3>
+              <h3>Skill Assessment</h3>
             </div>
             <ResponsiveContainer width="100%" height={350}>
               <RadarChart data={radarData}>

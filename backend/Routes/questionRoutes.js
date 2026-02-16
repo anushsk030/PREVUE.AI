@@ -584,7 +584,7 @@ router.get("/analytics", async (req, res) => {
     const performanceByDifficulty = Object.keys(difficultyGroups).map(difficulty => ({
       difficulty,
       averageScore: difficultyGroups[difficulty].length > 0
-        ? Math.round(difficultyGroups[difficulty].reduce((a, b) => a + b, 0) / difficultyGroups[difficulty].length)
+        ? Math.round((difficultyGroups[difficulty].reduce((a, b) => a + b, 0) / difficultyGroups[difficulty].length) * 10)
         : 0,
       count: difficultyGroups[difficulty].length
     }));
