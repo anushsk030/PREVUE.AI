@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from "react"
 import axios from "axios"
 import { format } from "date-fns"
-import { Trophy, Calendar, Target, TrendingUp, BarChart2, Briefcase } from "lucide-react"
+import { Trophy, Calendar, Target, TrendingUp, BarChart2, Briefcase, Download } from "lucide-react"
 import AuthContext from "../context/AuthContext"
 import styles from "./InterviewHistory.module.css"
 
@@ -27,7 +27,7 @@ export default function InterviewHistory() {
       const res = await axios.get(`${API_BASE}/api/questions/user-interviews`, {
         withCredentials: true
       })
-      
+
       const data = res.data?.interviews || []
       setHistory(data)
       calculateStats(data)
@@ -59,6 +59,30 @@ export default function InterviewHistory() {
     if (score >= 80) return "#10b981"
     if (score >= 60) return "#f59e0b"
     return "#ef4444"
+  }
+
+  const handleDownloadReport = async (interviewId) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE}/api/questions/feedback-report/${interviewId}`,
+        {
+          withCredentials: true,
+          responseType: 'blob'
+        }
+      )
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `feedback-report-${interviewId}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Failed to download report:", err)
+      alert("Failed to download feedback report. Please try again.")
+    }
   }
 
   if (loading) {
@@ -122,7 +146,7 @@ export default function InterviewHistory() {
       </div>
 
       <h3 className={styles.sectionTitle}>Recent Sessions</h3>
-      
+
       {history.length === 0 ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>
@@ -141,8 +165,10 @@ export default function InterviewHistory() {
                 <th>Difficulty</th>
                 <th>Score</th>
                 <th>Status</th>
+                <th>Feedback Report</th>
               </tr>
             </thead>
+
             <tbody>
               {history.map((interview) => (
                 <tr key={interview._id}>
@@ -152,28 +178,46 @@ export default function InterviewHistory() {
                       <span className={styles.modeBadge}>{interview.mode}</span>
                     </div>
                   </td>
+
                   <td>
                     <div className={styles.dateCell}>
                       <Calendar size={14} />
                       {format(new Date(interview.createdAt), "MMM d, yyyy")}
                     </div>
                   </td>
+
                   <td>
                     <span className={`${styles.difficultyBadge} ${styles[interview.difficulty.toLowerCase()]}`}>
                       {interview.difficulty}
                     </span>
                   </td>
+
                   <td>
-                    <span className={styles.scoreText} style={{ color: getScoreColor(interview.totalScore * 10) }}>
+                    <span
+                      className={styles.scoreText}
+                      style={{ color: getScoreColor(interview.totalScore * 10) }}
+                    >
                       {interview.totalScore * 10}%
                     </span>
                   </td>
+
                   <td>
                     <span className={styles.statusCompleted}>Completed</span>
+                  </td>
+
+                  <td>
+                    <button
+                      className={styles.downloadButton}
+                      onClick={() => handleDownloadReport(interview._id)}
+                    >
+                      <Download size={16} />
+                      Download PDF
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
+
           </table>
         </div>
       )}
