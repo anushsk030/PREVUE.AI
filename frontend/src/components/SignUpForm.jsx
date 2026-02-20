@@ -90,7 +90,8 @@ export default function SignUpForm({ onSuccess }) {
         onSuccess({
           name: res.data?.user?.name,
           email: res.data?.user?.email,
-          id: res.data?.user?._id,
+          id: res.data?.user?.id,
+          avatar: res.data?.user?.avatar,
         })
     } catch (err) {
       setError(err?.response?.data?.message || err.message || "Something went wrong")

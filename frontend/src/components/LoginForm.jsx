@@ -80,7 +80,7 @@ export default function LoginForm({ onSuccess, onForgot }) {
         }
       )
 
-      onSuccess?.(res.data)
+      onSuccess?.(res.data.user)
 
     } catch (err) {
       if (err.response) {
