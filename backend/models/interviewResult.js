@@ -25,7 +25,6 @@ const interviewResultSchema = new mongoose.Schema({
         idealAnswer: String,
         correctness: Number,
         depth: Number,
-        practicalExperience: Number,
         structure: Number,
         feedback: String
     }],
@@ -35,10 +34,6 @@ const interviewResultSchema = new mongoose.Schema({
         default: 0
     },
     overallDepth: {
-        type: Number,
-        default: 0
-    },
-    overallPracticalExperience: {
         type: Number,
         default: 0
     },

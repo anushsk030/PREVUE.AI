@@ -64,17 +64,27 @@ export default function InterviewHistory() {
   const handleDownloadReport = async (interviewId) => {
     try {
       const response = await axios.get(
-        `${API_BASE}/api/questions/feedback-report/${interviewId}`,
+        `${API_BASE}/api/pdf/feedback-report/${interviewId}`,
         {
           withCredentials: true,
           responseType: 'blob'
         }
       )
 
+      // Extract filename from Content-Disposition header
+      const contentDisposition = response.headers['content-disposition']
+      let filename = 'Interview_Report.pdf'
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename=([^;]+)/)
+        if (match && match[1]) {
+          filename = match[1].replace(/["']/g, '').trim()
+        }
+      }
+
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `feedback-report-${interviewId}.pdf`)
+      link.setAttribute('download', filename)
       document.body.appendChild(link)
       link.click()
       link.remove()
