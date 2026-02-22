@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -23,30 +23,36 @@ function App() {
     setLoading(false);
   }, []);
 
-  const handleLogin = (userData) => {
+  const handleLogin = useCallback((userData) => {
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData));
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setUser(null);
     localStorage.removeItem("user");
-  };
+  }, []);
 
-  const updateUser = (userData) => {
+  const updateUser = useCallback((userData) => {
     setUser((prev) => {
       const updated = { ...prev, ...userData };
       localStorage.setItem("user", JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({ user, handleLogin, handleLogout, updateUser }),
+    [user, handleLogin, handleLogout, updateUser]
+  );
 
   if (loading) {
     return <div className={styles.loading}>Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ user, handleLogin, handleLogout, updateUser }}>
+    <AuthContext.Provider value={contextValue}>
       <BrowserRouter>
         <Routes>
           {/* Reset password route MUST be accessible without login */}

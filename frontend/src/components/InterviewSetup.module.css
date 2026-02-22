@@ -1,6 +1,7 @@
 .container {
   width: 100%;
-  max-width: 600px;
+  max-width: 1200px;
+  padding: 20px;
 }
 
 .backBtn {
@@ -14,47 +15,252 @@
   position: absolute;
   right: 5%;
   top: 5%;
+  transition: all 0.2s;
 }
 
 .backBtn:hover {
   color: #764ba2;
+  transform: translateX(-4px);
 }
 
 .card {
   background: white;
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 40px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   position: relative;
 }
 
 .card h2 {
   font-size: 28px;
   margin-bottom: 30px;
-  color: #333;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+/* Grid Layout */
+.gridLayout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 20px;
+  align-items: start;
+}
+
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.rightColumn {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: fit-content;
 }
 
 .section {
-  margin-bottom: 30px;
+  margin-bottom: 0;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
 }
 
 .sectionLabel {
-  display: block;
+  display: flex;
+  align-items: center;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
-  margin-bottom: 12px;
+  color: #0f172a;
+  margin-bottom: 16px;
 }
 
+/* Resume Section */
+.resumeSection {
+  width: 100%;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.uploadArea {
+  width: 100%;
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 450px;
+  max-height: 550px;
+  height: 100%;
+}
+
+.uploadBox:hover {
+  border-color: #1978A9;
+  background: #f0f9ff;
+  transform: translateY(-2px);
+}
+
+.uploadIcon {
+  color: #94a3b8;
+  margin-bottom: 16px;
+  transition: all 0.3s;
+}
+
+.uploadBox:hover .uploadIcon {
+  color: #1978A9;
+  transform: scale(1.1);
+}
+
+.uploadText {
+  font-size: 16px;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 8px 0;
+}
+
+.uploadSubtext {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Preview Container */
+.previewContainer {
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  max-height: 550px;
+  display: flex;
+  flex-direction: column;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fileInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #1978A9;
+}
+
+.fileDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.previewFileName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileSize {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+.removeBtn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-size: 16px;
+}
+
+.removeBtn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.statusBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border-top: 1px solid;
+}
+
+.pdfPreview {
+  width: 100%;
+  height: 400px;
+  max-height: 400px;
+  background: #f8fafc;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pdfFrame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+}
+
+.textPreview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  background: #f8fafc;
+}
+
+.textPreviewLabel {
+  font-size: 16px;
+  font-weight: 600;
+  color: #475569;
+  margin: 16px 0 4px 0;
+}
+
+.textPreviewDesc {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Options */
 .resumeUploadRow {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-.fileInput {
-  display: none;
 }
 
 .uploadBtn {
@@ -96,52 +302,60 @@
 .options {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 }
 
 .option {
-  padding: 10px 16px;
-  border: 2px solid #ddd;
-  border-radius: 6px;
+  padding: 12px 20px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
   background-color: white;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
+  color: #475569;
 }
 
 .option:hover {
   border-color: #1978A9;
   color: #1978A9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(25, 120, 169, 0.1);
 }
 
 .option.selected {
-  background-color: #1978A9;
+  background: linear-gradient(135deg, #1978A9 0%, #764ba2 100%);
   color: white;
   border-color: #1978A9;
+  box-shadow: 0 4px 12px rgba(25, 120, 169, 0.3);
 }
 
 .startBtn {
   width: 100%;
-  padding: 14px;
-  background-color: #1978A9;
+  padding: 16px;
+  background: linear-gradient(135deg, #1978A9 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.3s;
   margin-top: 20px;
+  box-shadow: 0 4px 16px rgba(25, 120, 169, 0.3);
 }
 
 .startBtn:hover:not(:disabled) {
-  background-color: #764ba2;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(25, 120, 169, 0.4);
 }
 
 .startBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .errorMessage {
@@ -162,3 +376,40 @@
   25% { transform: translateX(-8px); }
   75% { transform: translateX(8px); }
 }
+
+/* Responsive Design */
+@media (max-width: 968px) {
+  .gridLayout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .rightColumn {
+    order: -1;
+  }
+
+  .container {
+    max-width: 600px;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 24px 20px;
+  }
+
+  .card h2 {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+
+  .pdfPreview {
+    height: 300px;
+  }
+
+  .uploadBox {
+    min-height: 220px;
+    padding: 32px 16px;
+  }
+}
+

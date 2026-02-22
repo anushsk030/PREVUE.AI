@@ -181,15 +181,10 @@ export default function CameraFeed({
   // FINAL REPORT (TRUE → FALSE)
   // =============================
   useEffect(() => {
-    console.log("Session state changed:", { prev: prevSessionRef.current, current: sessionActive });
-    
     const generateReport = () => {
       const data = analyticsRef.current;
 
-      console.log("Generating report, data:", data);
-
       if (data.faceDetectedFrames === 0) {
-        console.log("⚠ No interview data collected.");
         return;
       }
 
@@ -233,24 +228,6 @@ export default function CameraFeed({
           (100 - blinkRate) * 0.1
       );
 
-      console.log("\n" + "=".repeat(65));
-      console.log("📊 BEHAVIORAL ANALYSIS REPORT");
-      console.log("=".repeat(65));
-      console.log("\n🎯 OVERALL SCORES:");
-      console.log(`   🏆 Professionalism Score:     ${professionalism}%`);
-      console.log(`   ✅ Average Confidence:        ${avgConfidence}%`);
-      console.log(`   👁️  Eye Contact:              ${eyeContact}%`);
-      console.log(`   🎯 Stability Score:           ${stability}%`);
-      console.log(`   📹 Face Presence:             ${facePresence}%`);
-      console.log(`   😊 Blink Rate:                ${blinkRate} blinks/min`);
-      console.log("\n📈 DETAILED METRICS:");
-      console.log(`   📊 Total Frames Analyzed:     ${data.totalFrames}`);
-      console.log(`   ✨ Face Detected Frames:      ${data.faceDetectedFrames}`);
-      console.log(`   👀 Eye Contact Frames:        ${data.eyeContactFrames}`);
-      console.log(`   🔄 Head Movement Count:       ${data.headMovementCount}`);
-      console.log(`   👁️  Total Blinks:             ${data.blinkCount}`);
-      console.log("=".repeat(65) + "\n");
-
       if (onSessionComplete) {
         onSessionComplete({
           avgConfidence,
@@ -267,7 +244,6 @@ export default function CameraFeed({
       prevSessionRef.current === true &&
       sessionActive === false
     ) {
-      console.log("✅ Session ended, generating report...");
       generateReport();
     }
 
@@ -276,7 +252,6 @@ export default function CameraFeed({
     // Cleanup: Generate report on unmount if session was active
     return () => {
       if (prevSessionRef.current === true && analyticsRef.current.faceDetectedFrames > 0) {
-        console.log("⚠️ Component unmounting with active session, generating final report...");
         generateReport();
       }
     };

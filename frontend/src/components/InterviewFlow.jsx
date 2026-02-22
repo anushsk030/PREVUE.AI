@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { Loader2, MessageSquare, Trophy, CheckCircle, Zap, Briefcase, Layout, ArrowRight, TrendingUp, AlertCircle, Eye, Lightbulb, Activity, Smile } from "lucide-react";
 import CameraFeed from "./CameraFeed";
@@ -58,6 +58,14 @@ export default function InterviewFlow({
   const chunksRef = useRef([]);
   
   const interviewCreatedRef = useRef(false);
+  const behaviorScoresRef = useRef({
+    avgConfidence: 0,
+    eyeContact: 0,
+    stability: 0,
+    facePresence: 0,
+    blinkRate: 0,
+    professionalism: 0
+  });
 
   /* ================= PAGE LOCK ================= */
   useEffect(() => {
@@ -67,20 +75,34 @@ export default function InterviewFlow({
 
   /* ================= FULLSCREEN ENFORCEMENT ================= */
   useEffect(() => {
+    let requestInProgress = false;
+
     const handleFullscreenChange = () => {
       const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
       
-      if (!isFullscreen && !interviewComplete) {
+      if (!isFullscreen && !interviewComplete && !requestInProgress) {
         setFullscreenWarning(true);
-        // Request fullscreen again
-        const elem = document.documentElement;
-        if (elem.requestFullscreen) {
-          elem.requestFullscreen().catch(() => {});
-        } else if (elem.webkitRequestFullscreen) {
-          elem.webkitRequestFullscreen();
-        } else if (elem.msRequestFullscreen) {
-          elem.msRequestFullscreen();
-        }
+        requestInProgress = true;
+        
+        // Request fullscreen again with debouncing
+        setTimeout(() => {
+          const elem = document.documentElement;
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(() => {}).finally(() => {
+              requestInProgress = false;
+            });
+          } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+            requestInProgress = false;
+          } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+            requestInProgress = false;
+          } else {
+            requestInProgress = false;
+          }
+        }, 100);
+      } else if (isFullscreen) {
+        setFullscreenWarning(false);
       }
     };
 
@@ -238,6 +260,12 @@ export default function InterviewFlow({
         setAnswer((prev) =>
           prev ? `${prev} ${res.data.text}` : res.data.text
         );
+        
+        // Log STT comparison to console
+        console.log("\n🎤 Speech-to-Text Result:");
+        console.log("📝 Raw STT:", res.data.rawText || res.data.text);
+        console.log("✅ Corrected:", res.data.text);
+        console.log("─".repeat(50));
       }
     } catch (err) {
       console.error("STT failed:", err);
@@ -275,19 +303,19 @@ export default function InterviewFlow({
   };
 
   /* ================= SESSION COMPLETE HANDLER ================= */
-  const handleSessionComplete = (scores) => {
-    // Store behavior analysis scores from camera feed
-    setBehaviorScores({
+  const handleSessionComplete = useCallback((scores) => {
+    // Store behavior analysis scores from camera feed in both state and ref
+    const behaviorData = {
       avgConfidence: scores.avgConfidence || 0,
       eyeContact: scores.eyeContact || 0,
       stability: scores.stability || 0,
       facePresence: scores.facePresence || 0,
       blinkRate: scores.blinkRate || 0,
       professionalism: scores.professionalism || 0
-    });
-    
-    console.log("📊 Behavior Analysis Scores Captured:", scores);
-  };
+    };
+    setBehaviorScores(behaviorData);
+    behaviorScoresRef.current = behaviorData;
+  }, []);
 
   /* ================= NEXT (Updated for silent evaluation) ================= */
   const handleNext = () => {
@@ -326,14 +354,14 @@ export default function InterviewFlow({
             `${API_BASE}/api/questions/finalize-interview`,
             { 
               interviewId,
-              eyeContact: behaviorScores.eyeContact,
-              confidence: behaviorScores.avgConfidence,
+              eyeContact: behaviorScoresRef.current.eyeContact,
+              confidence: behaviorScoresRef.current.avgConfidence,
               engagement: 0,
-              professionalism: behaviorScores.professionalism,
-              stability: behaviorScores.stability,
-              facePresence: behaviorScores.facePresence,
-              blinkRate: behaviorScores.blinkRate,
-              avgConfidence: behaviorScores.avgConfidence
+              professionalism: behaviorScoresRef.current.professionalism,
+              stability: behaviorScoresRef.current.stability,
+              facePresence: behaviorScoresRef.current.facePresence,
+              blinkRate: behaviorScoresRef.current.blinkRate,
+              avgConfidence: behaviorScoresRef.current.avgConfidence
             },
             { withCredentials: true }
           );
@@ -344,7 +372,7 @@ export default function InterviewFlow({
           setFeedback({
             score: Math.round(totalScore * 10), // Convert to percentage (out of 100)
             summary: `Interview completed! Your overall performance score is ${totalScore}/10.`,
-            details: `Correctness: ${results?.correctness || 0}/10 | Depth: ${results?.depth || 0}/10 | Practical Experience: ${results?.practicalExperience || 0}/10 | Structure: ${results?.structure || 0}/10`,
+            details: `Correctness: ${results?.correctness || 0}/10 | Depth: ${results?.depth || 0}/10 | Structure: ${results?.structure || 0}/10`,
             results
           });
         } catch (err) {

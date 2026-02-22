@@ -618,7 +618,6 @@ Respond in JSON format:
 { 
   "correctness": <number>, 
   "depth": <number>, 
-  "practicalExperience": <number>, 
   "structure": <number>,
   "feedback": "<text>" 
 }
@@ -651,7 +650,6 @@ Respond in JSON format:
         result = { 
           correctness: null, 
           depth: null, 
-          practicalExperience: null, 
           structure: null, 
           feedback: resultText || "No feedback" 
         };
@@ -693,7 +691,6 @@ Respond in JSON format:
           idealAnswer,
           correctness: result.correctness || 0,
           depth: result.depth || 0,
-          practicalExperience: result.practicalExperience || 0,
           structure: result.structure || 0,
           feedback: result.feedback || ""
         };
@@ -709,30 +706,21 @@ Respond in JSON format:
         if (questions.length > 0) {
           const avgCorrectness = questions.reduce((sum, q) => sum + (q.correctness || 0), 0) / questions.length;
           const avgDepth = questions.reduce((sum, q) => sum + (q.depth || 0), 0) / questions.length;
-          const avgPracticalExperience = questions.reduce((sum, q) => sum + (q.practicalExperience || 0), 0) / questions.length;
           const avgStructure = questions.reduce((sum, q) => sum + (q.structure || 0), 0) / questions.length;
 
           interviewResult.overallCorrectness = Math.round(avgCorrectness * 10) / 10;
           interviewResult.overallDepth = Math.round(avgDepth * 10) / 10;
-          interviewResult.overallPracticalExperience = Math.round(avgPracticalExperience * 10) / 10;
           interviewResult.overallStructure = Math.round(avgStructure * 10) / 10;
 
-          // Update total score (only interview metrics, excluding camera-based scores for now)
+          // Update total score (average of all 3 metrics, out of 10)
           interviewResult.totalScore = Math.round(
             ((interviewResult.overallCorrectness +
               interviewResult.overallDepth +
-              interviewResult.overallPracticalExperience +
-              interviewResult.overallStructure) / 4) * 10
+              interviewResult.overallStructure) / 3) * 10
           ) / 10;
         }
 
         await interviewResult.save();
-
-        console.log(
-          `Evaluation saved for user ${userId}, Interview ${interviewResult._id}, Q${questionNumber}:`,
-          result,
-          `| Overall averages updated - Correctness: ${interviewResult.overallCorrectness}, Depth: ${interviewResult.overallDepth}, Practical: ${interviewResult.overallPracticalExperience}, Structure: ${interviewResult.overallStructure}, Total: ${interviewResult.totalScore}`
-        );
       } catch (dbError) {
         console.error("Database save error:", dbError);
       }
@@ -780,12 +768,10 @@ router.post("/finalize-interview", async (req, res) => {
     if (questions.length > 0) {
       const avgCorrectness = questions.reduce((sum, q) => sum + (q.correctness || 0), 0) / questions.length;
       const avgDepth = questions.reduce((sum, q) => sum + (q.depth || 0), 0) / questions.length;
-      const avgPracticalExperience = questions.reduce((sum, q) => sum + (q.practicalExperience || 0), 0) / questions.length;
       const avgStructure = questions.reduce((sum, q) => sum + (q.structure || 0), 0) / questions.length;
 
       interviewResult.overallCorrectness = Math.round(avgCorrectness * 10) / 10;
       interviewResult.overallDepth = Math.round(avgDepth * 10) / 10;
-      interviewResult.overallPracticalExperience = Math.round(avgPracticalExperience * 10) / 10;
       interviewResult.overallStructure = Math.round(avgStructure * 10) / 10;
     }
 
@@ -800,8 +786,8 @@ router.post("/finalize-interview", async (req, res) => {
     interviewResult.facePresence = facePresence || 0;
     interviewResult.blinkRate = blinkRate || 0;
 
-    // Calculate total score: 50% Verbal Analysis + 50% Behavioral Analysis
-    // Verbal scores are /10
+    // Calculate total score: 70% Verbal Analysis + 30% Behavioral Analysis
+    // Verbal scores are /10, include all 3 metrics
     const verbalAverage = (
       interviewResult.overallCorrectness +
       interviewResult.overallDepth +
@@ -815,9 +801,9 @@ router.post("/finalize-interview", async (req, res) => {
       ((stability || 0) / 10)
     ) / 3;
 
-    // Average verbal and behavioral scores (both on /10 scale)
+    // 70% verbal (technical) + 30% behavioral (both on /10 scale)
     interviewResult.totalScore = Math.round(
-      ((verbalAverage + behavioralAverage) / 2) * 10
+      (verbalAverage * 0.7 + behavioralAverage * 0.3) * 10
     ) / 10;
 
     // --- Generate Qualitative Feedback (Pros/Cons) ---
@@ -891,7 +877,6 @@ Return ONLY valid JSON in this format:
       results: {
         correctness: interviewResult.overallCorrectness,
         depth: interviewResult.overallDepth,
-        practicalExperience: interviewResult.overallPracticalExperience,
         structure: interviewResult.overallStructure,
         eyeContact: interviewResult.eyeContact,
         confidence: interviewResult.confidence,
