@@ -6,6 +6,7 @@ import InterviewSetup from "../components/InterviewSetup.jsx"
 import InterviewHistory from "../components/InterviewHistory"
 import Dashboard from "../components/Dashboard"
 import About from "../components/About"
+import HRModeScheduler from "../components/HRModeScheduler"
 import ProfileModal from "../components/ProfileModal"
 import LogoutModal from "../components/LogoutModal"
 import styles from "./Home.module.css"
@@ -131,6 +132,14 @@ export default function Home() {
                   Interview History
                 </button>
 
+                {/* HR MODE */}
+                <button
+                  onClick={() => setCurrentPage("hr-mode")}
+                  className={`${styles.navItem} ${currentPage === "hr-mode" ? styles.active : ""}`}
+                >
+                  HR MODE
+                </button>
+
                 {/* ABOUT */}
                 <button
                   onClick={() => setCurrentPage("about")}
@@ -224,6 +233,9 @@ export default function Home() {
 
           {/* ABOUT */}
           {currentPage === "about" && <About onGetStarted={() => setCurrentPage("interview")} />}
+
+          {/* HR MODE */}
+          {currentPage === "hr-mode" && <HRModeScheduler />}
 
           {/* INTERVIEW SETUP */}
           {currentPage === "interview" && (

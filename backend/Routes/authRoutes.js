@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import userModel from "../models/user.js";
+import HrInterviewSchedule from "../models/hrInterviewSchedule.js";
 import sendEmail from "../utils/sendEmail.js";
 import upload from "../config/multerConfig.js";
 import { authenticateToken } from "../Middlewares/authMiddleware.js";
@@ -14,6 +15,89 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
+
+/* =========================
+   GUEST INTERVIEW ACCESS
+========================= */
+router.post("/guest-access/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { name, email } = req.body || {};
+
+    const normalizedName = (name || "").trim();
+    const normalizedEmail = (email || "").trim().toLowerCase();
+
+    if (!token || !normalizedName || !normalizedEmail) {
+      return res.status(400).json({ message: "Token, name, and email are required" });
+    }
+
+    const schedule = await HrInterviewSchedule.findOne({
+      inviteToken: token,
+      status: "scheduled",
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ message: "Invalid or expired interview link" });
+    }
+
+    if (schedule.candidateEmail?.toLowerCase() !== normalizedEmail) {
+      return res.status(403).json({ message: "Email does not match scheduled candidate" });
+    }
+
+    const scheduledDate = new Date(schedule.scheduledAt);
+    if (!Number.isNaN(scheduledDate.getTime())) {
+      const expiryWindowMs = 24 * 60 * 60 * 1000;
+      if (Date.now() > scheduledDate.getTime() + expiryWindowMs) {
+        return res.status(410).json({ message: "This interview link has expired" });
+      }
+    }
+
+    let user = await userModel.findOne({ email: normalizedEmail });
+    if (!user) {
+      const tempPassword = crypto.randomBytes(24).toString("hex");
+      const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+      user = await userModel.create({
+        name: normalizedName,
+        email: normalizedEmail,
+        password: hashedPassword,
+      });
+    } else if (!user.name || user.name.trim().toLowerCase() === "user") {
+      user.name = normalizedName;
+      await user.save();
+    }
+
+    const jwtPayload = { _id: user._id, email: user.email };
+    const accessToken = jwt.sign(jwtPayload, process.env.ACCESS_TOKEN_SECRET);
+
+    res.cookie("token", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+      path: "/",
+    });
+
+    return res.status(200).json({
+      message: "Access granted",
+      schedule: {
+        role: schedule.role,
+        mode: schedule.mode,
+        difficulty: schedule.difficulty,
+        scheduledAt: schedule.scheduledAt,
+        notes: schedule.notes,
+      },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.profileImage ? `http://localhost:3000${user.profileImage}` : null,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to verify interview access" });
+  }
+});
 
 /* =========================
    SIGNUP

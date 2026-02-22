@@ -8,6 +8,7 @@ import AuthContext from "./context/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import Home from "./pages/Home";
 import ResetPassword from "./pages/ResetPassword";
+import GuestInterviewAccess from "./pages/GuestInterviewAccess";
 import styles from "./App.module.css";
 
 function App() {
@@ -50,6 +51,7 @@ function App() {
         <Routes>
           {/* Reset password route MUST be accessible without login */}
           <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="/guest-interview/:token" element={<GuestInterviewAccess />} />
 
           {/* Main app */}
           <Route

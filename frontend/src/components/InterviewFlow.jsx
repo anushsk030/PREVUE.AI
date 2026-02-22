@@ -12,12 +12,13 @@ const API_BASE =
 // Configure axios to send credentials (cookies) with every request
 axios.defaults.withCredentials = true;
 
-const TOTAL_QUESTIONS = 6;
+const TOTAL_QUESTIONS = 15;
 
 export default function InterviewFlow({
   role = "Frontend Developer",
   mode = "Technical",
   difficulty = "Medium",
+  resumeContext = "",
   onBack,
 }) {
   /* ================= STATE ================= */
@@ -95,7 +96,7 @@ export default function InterviewFlow({
   }, [interviewComplete]);
 
   /* ================= FETCH QUESTION ================= */
-  const fetchQuestion = async (qnNumber, lastQ = "", lastA = "", isInitial = false) => {
+  const fetchQuestion = async (qnNumber, lastQ = "", lastA = "", isInitial = false, history = []) => {
     if (isInitial) {
       setLoading(true);
     } else {
@@ -109,9 +110,11 @@ export default function InterviewFlow({
           role,
           mode,
           difficulty,
+          resumeContext,
           questionNumber: qnNumber,
           lastQuestion: lastQ,
           lastAnswer: lastA,
+          history,
         },
         { withCredentials: true }
       );
@@ -147,14 +150,14 @@ export default function InterviewFlow({
       try {
         const res = await axios.post(
           `${API_BASE}/api/questions/create-interview`,
-          { role, mode, difficulty },
+          { role, mode, difficulty, resumeContext },
           { withCredentials: true }
         );
         setInterviewId(res.data?.interviewId);
       } catch (err) {
         console.error("Failed to create interview:", err);
       }
-      fetchQuestion(1, "", "", true);
+      fetchQuestion(1, "", "", true, []);
     };
     createInterview();
     // eslint-disable-next-line
@@ -291,11 +294,9 @@ export default function InterviewFlow({
     stopRecording();
 
     // Store answer for current question
-    setAnswers((prev) => {
-      const copy = [...prev];
-      copy[index] = answer;
-      return copy;
-    });
+    const updatedAnswers = [...answers];
+    updatedAnswers[index] = answer;
+    setAnswers(updatedAnswers);
 
     // ================= FIRE-AND-FORGET SILENT EVALUATION =================
     axios.post(`${API_BASE}/api/questions/evaluate`, {
@@ -364,7 +365,16 @@ export default function InterviewFlow({
     const nextIndex = index + 1;
     setIndex(nextIndex);
     setAnswer("");
-    fetchQuestion(nextIndex + 1, askedQuestions[index], answer, false);
+
+    const history = askedQuestions
+      .slice(0, index + 1)
+      .map((askedQuestion, i) => ({
+        question: askedQuestion,
+        answer: updatedAnswers[i] || "",
+      }))
+      .filter((item) => item.question);
+
+    fetchQuestion(nextIndex + 1, askedQuestions[index], answer, false, history);
   };
 
   const handleMicToggle = () => {
