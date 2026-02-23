@@ -26,24 +26,11 @@ async function correctTextWithGemini(rawText) {
       return rawText; // fallback to raw text
     }
 
-    const prompt = `You are correcting speech-to-text output from a technical interview. The transcription contains errors due to background noise and accent issues. Common errors include:
-- "singly linked list" → "in leading list", "single linked list"
-- "node" → "note", "nod"
-- "data" → "dat", "dada"
-- "pointer" → "pointer", "point are"
-- Technical terms misheard as common words
+    const prompt = `Fix transcription errors in this technical interview answer. Correct misheard programming terms, grammar, and punctuation. Return ONLY the corrected sentence without any explanation, reasoning, or additional commentary.
 
-Raw transcribed text: "${rawText}"
+Input: "${rawText}"
 
-Instructions:
-1. Fix ALL transcription errors, especially technical programming terms
-2. Correct grammar and add proper punctuation
-3. Make the text coherent and technically accurate
-4. If a word seems wrong in context, replace it with the correct technical term
-5. DO NOT add extra information - only correct what's there
-6. Return a complete, grammatically correct sentence
-
-Corrected text:`;
+Corrected sentence:`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
@@ -52,6 +39,12 @@ Corrected text:`;
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 100,
+            topP: 0.8,
+            topK: 40
+          }
         }),
       }
     );
@@ -69,7 +62,14 @@ Corrected text:`;
     const correctedText =
       data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || rawText;
     
-    return correctedText;
+    // Extract only the first meaningful sentence, removing any explanations
+    const cleanText = correctedText
+      .split('\n')[0]  // Take first line only
+      .replace(/^(Corrected sentence:|Corrected text:|Corrected:|Output:)/i, '')  // Remove common prefixes
+      .trim()
+      .replace(/^["']|["']$/g, '');  // Remove surrounding quotes if present
+    
+    return cleanText || rawText;
   } catch (err) {
     return rawText; // fallback to raw text on error
   }
