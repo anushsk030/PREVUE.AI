@@ -39,6 +39,7 @@ export default function InterviewFlow({
   const [feedback, setFeedback] = useState(null);
   const [generatingFeedback, setGeneratingFeedback] = useState(false);
   const [fullscreenWarning, setFullscreenWarning] = useState(false);
+  const [ttsSource, setTtsSource] = useState("Idle");
 
   // Behavior Analysis Scores
   const [behaviorScores, setBehaviorScores] = useState({
@@ -56,6 +57,8 @@ export default function InterviewFlow({
 
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const ttsAudioRef = useRef(null);
+  const ttsAbortRef = useRef(null);
   
   const interviewCreatedRef = useRef(false);
   const behaviorScoresRef = useRef({
@@ -70,7 +73,20 @@ export default function InterviewFlow({
   /* ================= PAGE LOCK ================= */
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => (document.body.style.overflow = "");
+    return () => {
+      document.body.style.overflow = "";
+      if (ttsAbortRef.current) {
+        ttsAbortRef.current.abort();
+        ttsAbortRef.current = null;
+      }
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, []);
 
   /* ================= FULLSCREEN ENFORCEMENT ================= */
@@ -186,8 +202,10 @@ export default function InterviewFlow({
   }, []);
 
   /* ================= TTS ================= */
-  const speakQuestion = (text) => {
+  const fallbackSpeakQuestion = (text) => {
     if (!window.speechSynthesis || !text) return;
+
+    setTtsSource("Browser fallback");
 
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
@@ -198,6 +216,109 @@ export default function InterviewFlow({
     };
 
     window.speechSynthesis.speak(utter);
+  };
+
+  const stopTTSPlayback = () => {
+    if (ttsAbortRef.current) {
+      ttsAbortRef.current.abort();
+      ttsAbortRef.current = null;
+    }
+
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      if (ttsAudioRef.current.src?.startsWith("blob:")) {
+        URL.revokeObjectURL(ttsAudioRef.current.src);
+      }
+      ttsAudioRef.current = null;
+    }
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    setTtsSource("Idle");
+  };
+
+  const speakQuestion = async (text) => {
+    if (!text) return;
+
+    stopTTSPlayback();
+
+    const controller = new AbortController();
+    ttsAbortRef.current = controller;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/tts/synthesize`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let backendError = "Gemini TTS request failed";
+        try {
+          const errorPayload = await response.json();
+          backendError = errorPayload?.error || backendError;
+        } catch {
+          backendError = `${backendError} (${response.status})`;
+        }
+        throw new Error(backendError);
+      }
+
+      const provider = response.headers.get("x-tts-provider");
+      const audioFormat = response.headers.get("x-tts-audio-format");
+      setTtsSource(provider?.toLowerCase() === "gemini" ? "Gemini" : "Gemini?");
+
+      const audioBlob = await response.blob();
+      if (!audioBlob.size) {
+        throw new Error("Gemini TTS returned empty audio");
+      }
+
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      ttsAudioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        setTtsSource("Idle");
+        if (ttsAudioRef.current === audio) {
+          ttsAudioRef.current = null;
+        }
+      };
+
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        if (ttsAudioRef.current === audio) {
+          ttsAudioRef.current = null;
+        }
+        console.error("Gemini audio playback error", {
+          mimeType: audioBlob.type,
+          headerFormat: audioFormat,
+          size: audioBlob.size,
+        });
+        fallbackSpeakQuestion(text);
+      };
+
+      if (listening) {
+        stopRecording();
+      }
+
+      await audio.play();
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      console.error("Gemini TTS failed, using browser fallback:", error?.message || error);
+      fallbackSpeakQuestion(text);
+    } finally {
+      if (ttsAbortRef.current === controller) {
+        ttsAbortRef.current = null;
+      }
+    }
   };
 
   /* ================= STT ================= */
@@ -675,9 +796,12 @@ export default function InterviewFlow({
           <h1>
             <MessageSquare /> {role} Interview
           </h1>
-          <span>
-            Question {index + 1} / {TOTAL_QUESTIONS}
-          </span>
+          <div className={styles.headerMeta}>
+            <span>
+              Question {index + 1} / {TOTAL_QUESTIONS}
+            </span>
+            <span className={styles.ttsIndicator}>TTS: {ttsSource}</span>
+          </div>
         </header>
 
         <div className={styles.progressContainer}>

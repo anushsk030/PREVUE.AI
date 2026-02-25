@@ -49,6 +49,23 @@
   color: var(--muted);
 }
 
+.headerMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ttsIndicator {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
 /* ================= PROGRESS BAR ================= */
 .progressContainer {
   width: 100%;
