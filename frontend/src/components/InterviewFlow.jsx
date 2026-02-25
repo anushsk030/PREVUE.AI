@@ -59,7 +59,7 @@ export default function InterviewFlow({
   const chunksRef = useRef([]);
   const ttsAudioRef = useRef(null);
   const ttsAbortRef = useRef(null);
-  
+
   const interviewCreatedRef = useRef(false);
   const behaviorScoresRef = useRef({
     avgConfidence: 0,
@@ -95,16 +95,16 @@ export default function InterviewFlow({
 
     const handleFullscreenChange = () => {
       const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
-      
+
       if (!isFullscreen && !interviewComplete && !requestInProgress) {
         setFullscreenWarning(true);
         requestInProgress = true;
-        
+
         // Request fullscreen again with debouncing
         setTimeout(() => {
           const elem = document.documentElement;
           if (elem.requestFullscreen) {
-            elem.requestFullscreen().catch(() => {}).finally(() => {
+            elem.requestFullscreen().catch(() => { }).finally(() => {
               requestInProgress = false;
             });
           } else if (elem.webkitRequestFullscreen) {
@@ -381,7 +381,7 @@ export default function InterviewFlow({
         setAnswer((prev) =>
           prev ? `${prev} ${res.data.text}` : res.data.text
         );
-        
+
         // Log STT comparison to console
         console.log("\n🎤 Speech-to-Text Result:");
         console.log("📝 Raw STT:", res.data.rawText || res.data.text);
@@ -473,7 +473,7 @@ export default function InterviewFlow({
 
           const res = await axios.post(
             `${API_BASE}/api/questions/finalize-interview`,
-            { 
+            {
               interviewId,
               eyeContact: behaviorScoresRef.current.eyeContact,
               confidence: behaviorScoresRef.current.avgConfidence,
@@ -489,7 +489,7 @@ export default function InterviewFlow({
 
           const results = res.data?.results;
           const totalScore = results?.totalScore || 0;
-          
+
           setFeedback({
             score: Math.round(totalScore * 10), // Convert to percentage (out of 100)
             summary: `Interview completed! Your overall performance score is ${totalScore}/10.`,
@@ -539,13 +539,13 @@ export default function InterviewFlow({
   const handleReturnToDashboard = () => {
     // Exit fullscreen
     if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     } else if (document.webkitExitFullscreen) {
       document.webkitExitFullscreen();
     } else if (document.msExitFullscreen) {
       document.msExitFullscreen();
     }
-    
+
     // Navigate back to dashboard
     if (onBack) {
       onBack();
@@ -609,8 +609,8 @@ export default function InterviewFlow({
 
               <div className={styles.metricsGrid}>
                 {/* Verbal Analysis Header */}
-                <div style={{gridColumn: '1 / -1', marginBottom: '8px'}}>
-                  <h3 style={{fontSize: '18px', fontWeight: '700', color: '#0f172a', margin: '0 0 20px 0', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0'}}>
+                <div style={{ gridColumn: '1 / -1', marginBottom: '8px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', margin: '0 0 20px 0', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0' }}>
                     Verbal Analysis
                   </h3>
                 </div>
@@ -618,7 +618,7 @@ export default function InterviewFlow({
                 {/* Correctness */}
                 <div className={styles.metricCard}>
                   <div className={styles.metricHeader}>
-                    <div className={styles.iconBox} style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10b981'}}>
+                    <div className={styles.iconBox} style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
                       <CheckCircle size={18} />
                     </div>
                     <span>Correctness</span>
@@ -627,14 +627,14 @@ export default function InterviewFlow({
                     {Math.round((feedback.results?.correctness || 0) * 10)}%
                   </div>
                   <div className={styles.metricBar}>
-                    <div className={styles.metricFill} style={{width: `${(feedback.results?.correctness || 0) * 10}%`, backgroundColor: '#10b981'}}></div>
+                    <div className={styles.metricFill} style={{ width: `${(feedback.results?.correctness || 0) * 10}%`, backgroundColor: '#10b981' }}></div>
                   </div>
                 </div>
 
                 {/* Depth */}
                 <div className={styles.metricCard}>
                   <div className={styles.metricHeader}>
-                    <div className={styles.iconBox} style={{background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6'}}>
+                    <div className={styles.iconBox} style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
                       <Zap size={18} />
                     </div>
                     <span>Depth</span>
@@ -643,14 +643,14 @@ export default function InterviewFlow({
                     {Math.round((feedback.results?.depth || 0) * 10)}%
                   </div>
                   <div className={styles.metricBar}>
-                    <div className={styles.metricFill} style={{width: `${(feedback.results?.depth || 0) * 10}%`, backgroundColor: '#3b82f6'}}></div>
+                    <div className={styles.metricFill} style={{ width: `${(feedback.results?.depth || 0) * 10}%`, backgroundColor: '#3b82f6' }}></div>
                   </div>
                 </div>
 
                 {/* Structure */}
                 <div className={styles.metricCard}>
                   <div className={styles.metricHeader}>
-                    <div className={styles.iconBox} style={{background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6'}}>
+                    <div className={styles.iconBox} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
                       <Layout size={18} />
                     </div>
                     <span>Structure</span>
@@ -659,7 +659,7 @@ export default function InterviewFlow({
                     {Math.round((feedback.results?.structure || 0) * 10)}%
                   </div>
                   <div className={styles.metricBar}>
-                    <div className={styles.metricFill} style={{width: `${(feedback.results?.structure || 0) * 10}%`, backgroundColor: '#8b5cf6'}}></div>
+                    <div className={styles.metricFill} style={{ width: `${(feedback.results?.structure || 0) * 10}%`, backgroundColor: '#8b5cf6' }}></div>
                   </div>
                 </div>
               </div>
@@ -667,67 +667,67 @@ export default function InterviewFlow({
               {/* Behavioral Analysis Section */}
               <div className={styles.metricsGrid}>
                 {/* Behavioral Analysis Header */}
-                <div style={{gridColumn: '1 / -1', marginBottom: '8px'}}>
-                  <h3 style={{fontSize: '18px', fontWeight: '700', color: '#0f172a', margin: '0 0 20px 0', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0'}}>
+                <div style={{ gridColumn: '1 / -1', marginBottom: '8px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', margin: '0 0 20px 0', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0' }}>
                     📊 Behavioral Analysis
                   </h3>
                 </div>
 
                 {/* Eye Contact */}
-                  <div className={styles.metricCard}>
-                    <div className={styles.metricHeader}>
-                      <div className={styles.iconBox} style={{background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1'}}>
-                        <Eye size={18} />
-                      </div>
-                      <span>Eye Contact</span>
+                <div className={styles.metricCard}>
+                  <div className={styles.metricHeader}>
+                    <div className={styles.iconBox} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                      <Eye size={18} />
                     </div>
-                    <div className={styles.metricValue}>
-                      {Math.round(behaviorScores.eyeContact)}%
-                    </div>
-                    <div className={styles.metricBar}>
-                      <div className={styles.metricFill} style={{width: `${behaviorScores.eyeContact}%`, backgroundColor: '#6366f1'}}></div>
-                    </div>
+                    <span>Eye Contact</span>
                   </div>
-
-                  {/* Confidence */}
-                  <div className={styles.metricCard}>
-                    <div className={styles.metricHeader}>
-                      <div className={styles.iconBox} style={{background: 'rgba(236, 72, 153, 0.1)', color: '#ec4899'}}>
-                        <Lightbulb size={18} />
-                      </div>
-                      <span>Confidence</span>
-                    </div>
-                    <div className={styles.metricValue}>
-                      {Math.round(behaviorScores.avgConfidence)}%
-                    </div>
-                    <div className={styles.metricBar}>
-                      <div className={styles.metricFill} style={{width: `${behaviorScores.avgConfidence}%`, backgroundColor: '#ec4899'}}></div>
-                    </div>
+                  <div className={styles.metricValue}>
+                    {Math.round(behaviorScores.eyeContact)}%
                   </div>
-
-                  {/* Stability */}
-                  <div className={styles.metricCard}>
-                    <div className={styles.metricHeader}>
-                      <div className={styles.iconBox} style={{background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e'}}>
-                        <Activity size={18} />
-                      </div>
-                      <span>Stability</span>
-                    </div>
-                    <div className={styles.metricValue}>
-                      {Math.round(behaviorScores.stability)}%
-                    </div>
-                    <div className={styles.metricBar}>
-                      <div className={styles.metricFill} style={{width: `${behaviorScores.stability}%`, backgroundColor: '#22c55e'}}></div>
-                    </div>
+                  <div className={styles.metricBar}>
+                    <div className={styles.metricFill} style={{ width: `${behaviorScores.eyeContact}%`, backgroundColor: '#6366f1' }}></div>
                   </div>
-
                 </div>
+
+                {/* Confidence */}
+                <div className={styles.metricCard}>
+                  <div className={styles.metricHeader}>
+                    <div className={styles.iconBox} style={{ background: 'rgba(236, 72, 153, 0.1)', color: '#ec4899' }}>
+                      <Lightbulb size={18} />
+                    </div>
+                    <span>Confidence</span>
+                  </div>
+                  <div className={styles.metricValue}>
+                    {Math.round(behaviorScores.avgConfidence)}%
+                  </div>
+                  <div className={styles.metricBar}>
+                    <div className={styles.metricFill} style={{ width: `${behaviorScores.avgConfidence}%`, backgroundColor: '#ec4899' }}></div>
+                  </div>
+                </div>
+
+                {/* Stability */}
+                <div className={styles.metricCard}>
+                  <div className={styles.metricHeader}>
+                    <div className={styles.iconBox} style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>
+                      <Activity size={18} />
+                    </div>
+                    <span>Stability</span>
+                  </div>
+                  <div className={styles.metricValue}>
+                    {Math.round(behaviorScores.stability)}%
+                  </div>
+                  <div className={styles.metricBar}>
+                    <div className={styles.metricFill} style={{ width: `${behaviorScores.stability}%`, backgroundColor: '#22c55e' }}></div>
+                  </div>
+                </div>
+
+              </div>
 
               {feedback.results?.feedbackSummary && (
                 <div className={styles.qualitativeSection}>
                   <div className={styles.feedbackColumn}>
                     <div className={styles.columnHeader}>
-                      <div className={styles.iconBox} style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10b981'}}>
+                      <div className={styles.iconBox} style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
                         <TrendingUp size={18} />
                       </div>
                       <h3>Key Strengths</h3>
@@ -741,7 +741,7 @@ export default function InterviewFlow({
 
                   <div className={styles.feedbackColumn}>
                     <div className={styles.columnHeader}>
-                      <div className={styles.iconBox} style={{background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444'}}>
+                      <div className={styles.iconBox} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
                         <AlertCircle size={18} />
                       </div>
                       <h3>Areas for Improvement</h3>
@@ -778,7 +778,7 @@ export default function InterviewFlow({
               setFullscreenWarning(false);
               const elem = document.documentElement;
               if (elem.requestFullscreen) {
-                elem.requestFullscreen().catch(() => {});
+                elem.requestFullscreen().catch(() => { });
               } else if (elem.webkitRequestFullscreen) {
                 elem.webkitRequestFullscreen();
               } else if (elem.msRequestFullscreen) {
@@ -790,7 +790,7 @@ export default function InterviewFlow({
           </div>
         </div>
       )}
-      
+
       <div className={styles.interviewShell}>
         <header className={styles.header}>
           <h1>
@@ -800,7 +800,7 @@ export default function InterviewFlow({
             <span>
               Question {index + 1} / {TOTAL_QUESTIONS}
             </span>
-            <span className={styles.ttsIndicator}>TTS: {ttsSource}</span>
+
           </div>
         </header>
 
