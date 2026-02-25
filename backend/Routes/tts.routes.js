@@ -4,25 +4,21 @@ import { authenticateToken } from "../Middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-const GEMINI_API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com";
-const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-2.5-flash-preview-tts";
+const GEMINI_API_BASE =
+  process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com";
+const GEMINI_TTS_MODEL =
+  process.env.GEMINI_TTS_MODEL || "gemini-2.5-flash-preview-tts";
 const DEFAULT_VOICE = process.env.GEMINI_TTS_VOICE || "Puck";
-const DEFAULT_STYLE_PROMPT =
-  process.env.GEMINI_TTS_STYLE_PROMPT ||
-  "Speak in a professional tone suitable for formal interviews. Use measured pacing, clear articulation, and composed delivery. Maintain a formal, authoritative, and approachable demeanor.";
+
+// ─── WAV helpers ────────────────────────────────────────────────────────────
 
 function parsePcmConfig(mimeType = "") {
   const normalized = String(mimeType).toLowerCase();
-  const isL16 = normalized.startsWith("audio/l16");
-  const isPcm = normalized.includes("pcm");
-
-  if (!isL16 && !isPcm) {
+  if (!normalized.startsWith("audio/l16") && !normalized.includes("pcm")) {
     return null;
   }
-
   const sampleRateMatch = normalized.match(/rate=(\d+)/i);
   const channelsMatch = normalized.match(/channels=(\d+)/i);
-
   return {
     sampleRate: sampleRateMatch ? Number(sampleRateMatch[1]) : 24000,
     channels: channelsMatch ? Number(channelsMatch[1]) : 1,
@@ -30,11 +26,10 @@ function parsePcmConfig(mimeType = "") {
   };
 }
 
-function pcmToWav(pcmBuffer, { sampleRate, channels, bitsPerSample }) {
+function makeWavHeader({ sampleRate, channels, bitsPerSample, dataSize }) {
   const bytesPerSample = bitsPerSample / 8;
   const blockAlign = channels * bytesPerSample;
   const byteRate = sampleRate * blockAlign;
-  const dataSize = pcmBuffer.length;
   const header = Buffer.alloc(44);
 
   header.write("RIFF", 0);
@@ -50,60 +45,89 @@ function pcmToWav(pcmBuffer, { sampleRate, channels, bitsPerSample }) {
   header.writeUInt16LE(bitsPerSample, 34);
   header.write("data", 36);
   header.writeUInt32LE(dataSize, 40);
-
-  return Buffer.concat([header, pcmBuffer]);
+  return header;
 }
 
-function extractAudioPart(data) {
-  const parts = data?.candidates?.[0]?.content?.parts;
-  if (!Array.isArray(parts)) {
-    return null;
-  }
+// ─── Streaming TTS request ───────────────────────────────────────────────────
 
-  for (const part of parts) {
-    const inlineData = part?.inlineData || part?.inline_data;
-    const base64Audio = inlineData?.data;
-    if (!base64Audio) continue;
+/**
+ * Calls the Gemini *streaming* generateContent endpoint and collects all
+ * base64-encoded PCM/audio chunks from the newline-delimited JSON stream.
+ *
+ * Returns { audioBase64: Buffer, mimeType: string } or throws.
+ */
+async function streamGeminiTTS({ apiKey, voiceName, text }) {
+  const url = `${GEMINI_API_BASE}/v1beta/models/${GEMINI_TTS_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-    return {
-      audioBase64: base64Audio,
-      mimeType: inlineData?.mimeType || inlineData?.mime_type || "audio/wav",
-    };
-  }
-
-  return null;
-}
-
-async function requestGeminiTTS({ apiKey, voiceName, text, stylePrompt, useStyle }) {
-  const spokenRequest = useStyle
-    ? `Read ONLY the text inside <speak> tags. ${stylePrompt}\n\n<speak>${text}</speak>`
-    : text;
-
-  return fetch(
-    `${GEMINI_API_BASE}/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: spokenRequest }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName,
-              },
-            },
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName },
           },
         },
-      }),
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => response.statusText);
+    throw new Error(`Gemini TTS upstream error (${response.status}): ${errText}`);
+  }
+
+  // The SSE stream emits lines like:  data: {...json...}
+  const rawText = await response.text();
+  const pcmChunks = [];
+  let detectedMimeType = "audio/wav";
+
+  for (const line of rawText.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(trimmed.slice(5).trim());
+    } catch {
+      continue;
     }
-  );
+
+    // Surface any API-level error buried inside a chunk
+    if (parsed?.error) {
+      throw new Error(parsed.error?.message || "Gemini TTS stream error");
+    }
+
+    const parts = parsed?.candidates?.[0]?.content?.parts;
+    if (!Array.isArray(parts)) continue;
+
+    for (const part of parts) {
+      const inlineData = part?.inlineData || part?.inline_data;
+      if (!inlineData?.data) continue;
+      detectedMimeType =
+        inlineData?.mimeType || inlineData?.mime_type || detectedMimeType;
+      pcmChunks.push(Buffer.from(inlineData.data, "base64"));
+    }
+  }
+
+  if (!pcmChunks.length) {
+    throw new Error("Gemini TTS stream returned no audio data");
+  }
+
+  return {
+    audioBuffer: Buffer.concat(pcmChunks),
+    mimeType: detectedMimeType,
+  };
 }
+
+// ─── Route ───────────────────────────────────────────────────────────────────
 
 router.post("/synthesize", authenticateToken, async (req, res) => {
   try {
-    const { text = "", voiceName = DEFAULT_VOICE, stylePrompt = DEFAULT_STYLE_PROMPT } = req.body || {};
+    const { text = "", voiceName = DEFAULT_VOICE } = req.body || {};
 
     if (!text.trim()) {
       return res.status(400).json({ error: "Text is required" });
@@ -114,44 +138,23 @@ router.post("/synthesize", authenticateToken, async (req, res) => {
       return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
     }
 
-    let response = await requestGeminiTTS({
+    const { audioBuffer, mimeType } = await streamGeminiTTS({
       apiKey,
       voiceName,
       text,
-      stylePrompt,
-      useStyle: true,
     });
 
-    let data = await response.json();
-
-    if (!response.ok || data?.error) {
-      response = await requestGeminiTTS({
-        apiKey,
-        voiceName,
-        text,
-        stylePrompt,
-        useStyle: false,
-      });
-      data = await response.json();
+    // Convert raw PCM/L16 → WAV so browsers can play it natively
+    const pcmConfig = parsePcmConfig(mimeType);
+    let outputBuffer, outputMimeType;
+    if (pcmConfig) {
+      const header = makeWavHeader({ ...pcmConfig, dataSize: audioBuffer.length });
+      outputBuffer = Buffer.concat([header, audioBuffer]);
+      outputMimeType = "audio/wav";
+    } else {
+      outputBuffer = audioBuffer;
+      outputMimeType = mimeType;
     }
-
-    if (!response.ok || data?.error) {
-      const message = data?.error?.message || "Gemini TTS request failed";
-      console.error("Gemini TTS upstream error:", message);
-      return res.status(502).json({ error: message });
-    }
-
-    const audioPart = extractAudioPart(data);
-    if (!audioPart?.audioBase64) {
-      return res.status(502).json({ error: "Gemini TTS returned no audio" });
-    }
-
-    const rawAudioBuffer = Buffer.from(audioPart.audioBase64, "base64");
-    const pcmConfig = parsePcmConfig(audioPart.mimeType);
-    const outputBuffer = pcmConfig
-      ? pcmToWav(rawAudioBuffer, pcmConfig)
-      : rawAudioBuffer;
-    const outputMimeType = pcmConfig ? "audio/wav" : audioPart.mimeType;
 
     res.setHeader("Content-Type", outputMimeType);
     res.setHeader("Cache-Control", "no-store");
@@ -161,7 +164,7 @@ router.post("/synthesize", authenticateToken, async (req, res) => {
     res.setHeader("X-TTS-Voice", voiceName);
     return res.send(outputBuffer);
   } catch (error) {
-    console.error("Gemini TTS error:", error);
+    console.error("Gemini TTS error:", error?.message || error);
     return res.status(500).json({ error: "Failed to synthesize speech" });
   }
 });
