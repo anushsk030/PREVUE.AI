@@ -13,6 +13,15 @@ const ttsClient = new textToSpeech.TextToSpeechClient({
 const DEFAULT_VOICE_NAME = process.env.GCP_TTS_VOICE || "en-US-Neural2-D"; // professional male
 const DEFAULT_LANGUAGE_CODE = process.env.GCP_TTS_LANGUAGE || "en-US";
 
+/**
+ * Remove quote characters from text so TTS doesn't read them aloud.
+ * E.g., "while" becomes while, 'for' becomes for
+ */
+const cleanTextForTTS = (text) => {
+  // Remove all types of quote characters
+  return text.replace(/["'`""'']/g, '');
+};
+
 router.post("/synthesize", authenticateToken, async (req, res) => {
   try {
     const { text = "", voiceName = DEFAULT_VOICE_NAME } = req.body || {};
@@ -21,8 +30,11 @@ router.post("/synthesize", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Text is required" });
     }
 
+    // Clean text by removing quote characters
+    const cleanedText = cleanTextForTTS(text);
+
     const [response] = await ttsClient.synthesizeSpeech({
-      input: { text },
+      input: { text: cleanedText },
       voice: {
         languageCode: DEFAULT_LANGUAGE_CODE,
         name: voiceName,
